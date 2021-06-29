@@ -1,7 +1,7 @@
 {
-  "name": "serverless-template",
+  "name": "twitter-trend-functions",
   "version": "1.0.0",
-  "description": "serverless template",
+  "description": "Twitter Trend Functions",
   "license": "MIT",
   "author": "defi.org",
   "repository": {
@@ -14,11 +14,23 @@
   "homepage": "https://github.com/defi-org-code/serverless-template#readme",
   "main": "dist/index.js",
   "dependencies": {
-    "@defi.org/web3-candies": "1.x"
+    "better-sqlite3": "^7.4.1",
+    "fs-extra": "^10.0.0",
+    "needle": "^2.6.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^5.4.1",
+    "@types/fs-extra": "^9.0.11",
+    "@types/needle": "^2.5.1",
+    "@types/node": "^15.6.0",
     "@vercel/ncc": "0.x",
-    "serverless": "2.x"
+    "prettier": "^2.3.2",
+    "serverless": "2.x",
+    "typescript": "4.x",
+    "@types/chai": "4.x",
+    "chai": "4.x",
+    "@types/mocha": "8.x",
+    "mocha": "9.x"
   },
   "scripts": {
     "prettier": "prettier --write '{contracts,src,test}/**/*.{ts,js,json,sol}'",

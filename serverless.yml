@@ -9,7 +9,8 @@ package:
   patterns:
     - '!*'
     - '!*/**'
-    - dist/index.js
+    - 'dist/*'
+    - 'dist/*/**'
 
 functions:
   writer:
