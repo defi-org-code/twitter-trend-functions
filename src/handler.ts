@@ -210,6 +210,9 @@ const fetchTopEntities = async (): Promise<EntitiesResult> => {
 function success(result: any) {
   return {
     statusCode: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
     body: JSON.stringify(result, null, 2),
   };
 }
@@ -231,15 +234,6 @@ async function catchErrors(this: any, event: any, context: any) {
     };
   }
 }
-
-// example
-
-async function fetchJson() {
-  const response = await fetch("https://httpbin.org/gzip"); // some example JSON web service
-  return await response.json();
-}
-
-// exports
 
 export const reader = catchErrors.bind(beforeRunningFunc.bind(_reader));
 export const writer = catchErrors.bind(beforeRunningFunc.bind(_writer));
