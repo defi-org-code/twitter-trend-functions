@@ -1,0 +1,36 @@
+name: delete lambda
+
+on: 
+  workflow_dispatch:
+
+jobs:
+  remove:
+    name: remove
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [ 14.x ]
+    steps:
+      - uses: jungwinter/split@v1
+        id: splitrepo
+        with:
+          msg: ${{ github.repository }}
+          seperator: '/'
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: |
+          npm ci
+      - name: serverless remove
+        uses: serverless/github-action@master
+        with:
+          args: remove
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+          AWS_STORAGE_ARN: ${{ secrets.SERVERLESS_AWS_STORAGE_ARN }}
+          AWS_STORAGE_SG: ${{ secrets.SERVERLESS_AWS_STORAGE_SG }}
+          AWS_STORAGE_SUBNET: ${{ secrets.SERVERLESS_AWS_STORAGE_SUBNET }}
+          GITHUB_REPO_NAME: ${{ steps.splitrepo.outputs._1 }}

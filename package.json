@@ -1,0 +1,35 @@
+{
+  "name": "serverless-template",
+  "version": "1.0.0",
+  "description": "serverless template",
+  "license": "MIT",
+  "author": "defi.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/defi-org-code/serverless-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/defi-org-code/serverless-template/issues"
+  },
+  "homepage": "https://github.com/defi-org-code/serverless-template#readme",
+  "main": "dist/index.js",
+  "dependencies": {
+    "@defi.org/web3-candies": "1.x"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "0.x",
+    "serverless": "2.x"
+  },
+  "scripts": {
+    "prettier": "prettier --write '{contracts,src,test}/**/*.{ts,js,json,sol}'",
+    "prebuild": "rm -rf dist && npm run prettier",
+    "build": "ncc build src/handler.ts --target=es5",
+    "writer": "HOME_DIR=dist node -e \"require('./dist/index.js').writer().then(console.log)\"",
+    "reader": "HOME_DIR=dist node -e \"require('./dist/index.js').reader({pathParameters:{param:'hello'}}).then(console.log)\"",
+    "test": "env TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\" }' mocha -r ts-node/register 'test/**/*.ts'",
+    "serverless-test": "GITHUB_REPO_NAME='repo' AWS_STORAGE_ARN='arn:aws:elasticfilesystem:us-e-2:123456789012:access-point/fsap-12345678901234567' AWS_STORAGE_SG='sg' AWS_STORAGE_SUBNET='subnet' npx serverless webpack --out dist"
+  },
+  "prettier": {
+    "printWidth": 120
+  }
+}

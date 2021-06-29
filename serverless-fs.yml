@@ -1,0 +1,2 @@
+localMountPath: ${self:provider.environment.ROOT_DIR}
+arn: ${env:AWS_STORAGE_ARN}
