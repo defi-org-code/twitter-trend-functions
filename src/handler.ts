@@ -65,6 +65,7 @@ const _cleanAndSavePeriodTopEntities = async () => {
   console.log("---- Save Period Top Entities ----");
   const yesterdayTopEntities = await savePeriodTopEntities();
   const weeklyTopEntities = await fetchWeeklyTopEntities();
+  console.log("---- Write Period Top Entities ----");
   await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
   console.log("---- Truncating entities ----");
   await truncateEntities();
@@ -219,9 +220,7 @@ const savePeriodTopEntities = async () => {
     db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.CASHHASH),
     db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.MENTION),
     db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.URL),
-  ];
-
-  console.log("yesterdayTopEntities", JSON.stringify(yesterdayTopEntities));
+  ].filter(e => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,date) values (?,?,?,date())");
 
@@ -283,7 +282,7 @@ function success(result: any) {
     headers: {
       "Access-Control-Allow-Origin": "*",
     },
-    body: JSON.stringify(result, null, 2),
+    body: result,
   };
 }
 
