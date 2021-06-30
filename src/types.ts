@@ -23,12 +23,19 @@ export type Tweet = {
   };
 };
 
-export type Entity = {
+type BaseEntity = {
   type: EntityType;
   name: string;
   count: number;
-  lastUpdateTime: Date;
 };
+
+export interface Entity extends BaseEntity {
+  lastUpdateTime?: Date;
+}
+
+export interface TopEntity extends BaseEntity {
+  date: Date;
+}
 
 export type EntitiesResult = {
   hashtags: Array<Entity>;
