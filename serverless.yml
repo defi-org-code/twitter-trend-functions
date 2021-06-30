@@ -22,7 +22,7 @@ functions:
     handler: dist/index.writer_cleanAndSavePeriodTopEntities
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
-      - schedule: cron(42 12 * * ? *) # examples: rate(1 minute), rate(60 minutes), cron(0 12 * * ? *)
+      - schedule: cron(55 12 * * ? *) # examples: rate(1 minute), rate(60 minutes), cron(0 12 * * ? *)
   reader_fetchTopEntities:
     handler: dist/index.reader_fetchTopEntities
     fileSystemConfig: ${file(./serverless-fs.yml)}
