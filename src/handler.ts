@@ -181,7 +181,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
 const writeTopEntitiesToDisk = async () => {
   const topEntities = await fetchTopEntities(50);
 
-  await fs.writeJson(TOP_ENTITIES_PATH, JSON.stringify(topEntities));
+  await fs.writeJson(TOP_ENTITIES_PATH, topEntities);
 };
 
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
@@ -220,7 +220,7 @@ const savePeriodTopEntities = async () => {
     db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.CASHHASH),
     db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.MENTION),
     db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.URL),
-  ].filter(e => !!e);
+  ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,date) values (?,?,?,date())");
 
@@ -261,13 +261,10 @@ const fetchWeeklyTopEntities = async () => {
 };
 
 const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, weeklyTopEntities: Array<TopEntity>) => {
-  await fs.writeJson(
-    PERIOD_TOP_ENTITIES_PATH,
-    JSON.stringify({
-      yesterdayTopEntities,
-      weeklyTopEntities,
-    })
-  );
+  await fs.writeJson(PERIOD_TOP_ENTITIES_PATH, {
+    yesterdayTopEntities,
+    weeklyTopEntities,
+  });
 };
 
 const truncateEntities = async () => {
@@ -310,3 +307,8 @@ export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_s
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities)
 );
+
+(async () => {
+  await writer_saveTopEntities({}, {});
+  await writer_cleanAndSavePeriodTopEntities({}, {});
+})();
