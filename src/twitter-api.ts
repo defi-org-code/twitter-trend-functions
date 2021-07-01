@@ -8,8 +8,6 @@ import needle from "needle";
 // export BEARER_TOKEN='YOUR-TOKEN'
 const token = process.env.BEARER_TOKEN;
 
-console.log("Loading token", token);
-
 export const getRecentTweets = async () => {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
@@ -25,9 +23,6 @@ export const getRecentTweets = async () => {
     expansions: "author_id,referenced_tweets.id",
     max_results: 11,
   };
-
-  console.log("getRecentTweets token", token);
-  console.log("getRecentTweets token from env", process.env.BEARER_TOKEN);
 
   const res = await needle("get", "https://api.twitter.com/2/tweets/search/recent", params, {
     headers: {

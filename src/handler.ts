@@ -279,7 +279,7 @@ function success(result: any) {
     headers: {
       "Access-Control-Allow-Origin": "*",
     },
-    body: result,
+    body: JSON.stringify(result),
   };
 }
 
