@@ -8,6 +8,10 @@ const TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "top-entities.jso
 const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-top-entities.json");
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 
+const EXCLUDED_ENTITIES = [
+  "defi", "crypto", "cryptocurrency", "cryptocurrencies", "airdrop", "airdrops", "yieldfarming"
+];
+
 let db: Database;
 
 const ensureDBIsReady = () => {
@@ -69,6 +73,8 @@ const _cleanAndSavePeriodTopEntities = async () => {
   await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
   console.log("---- Truncating entities ----");
   await truncateEntities();
+  // Refilling info for new day
+  await _saveTopEntities();
 };
 
 // ############ INTERNALS #############
@@ -109,7 +115,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.CASHHASH,
             name: cashtag.tag,
-            count: t.counterToUpdate,
+            count: t.counterToUpdate
           });
         }
       });
@@ -125,7 +131,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.HASHTAG,
             name: hashtag.tag,
-            count: t.counterToUpdate,
+            count: t.counterToUpdate
           });
         }
       });
@@ -141,7 +147,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.MENTION,
             name: mention.username,
-            count: t.counterToUpdate,
+            count: t.counterToUpdate
           });
         }
       });
@@ -157,7 +163,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.URL,
             name: url.url,
-            count: t.counterToUpdate,
+            count: t.counterToUpdate
           });
         }
       });
@@ -166,7 +172,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
 
   const entitiesStatement = db.prepare(
     "Insert INTO entities(type,name,count,lastUpdateTime) values (?,?,?,datetime())\n" +
-      "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
+    "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
   db.transaction((entities: Array<Entity>) => {
@@ -179,7 +185,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
 };
 
 const writeTopEntitiesToDisk = async () => {
-  const topEntities = await fetchTopEntities(50);
+  const topEntities = await fetchTopEntities(30);
 
   await fs.writeJson(TOP_ENTITIES_PATH, topEntities);
 };
@@ -187,22 +193,26 @@ const writeTopEntitiesToDisk = async () => {
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
   const hashtags = db
     .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ? order by processed desc, count desc limit ${limit}`
+      `select processed, count, name, lastUpdateTime from entities where type = ?
+       and not name in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
     )
     .all(EntityType.HASHTAG);
   const cashtags = db
     .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ? order by processed desc, count desc limit ${limit}`
+      `select processed, count, name, lastUpdateTime from entities where type = ?
+       and not name in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
     )
     .all(EntityType.CASHHASH);
   const mentions = db
     .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ? order by processed desc, count desc limit ${limit}`
+      `select processed, count, name, lastUpdateTime from entities where type = ?
+       and not name in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
     )
     .all(EntityType.MENTION);
   const urls = db
     .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ? order by processed desc, count desc limit ${limit}`
+      `select processed, count, name, lastUpdateTime from entities where type = ?
+       and not name in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
     )
     .all(EntityType.URL);
 
@@ -210,16 +220,20 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
     hashtags,
     cashtags,
     mentions,
-    urls,
+    urls
   };
 };
 
 const savePeriodTopEntities = async () => {
   const yesterdayTopEntities: Array<TopEntity> = [
-    db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.HASHTAG),
-    db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.CASHHASH),
-    db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.MENTION),
-    db.prepare(`select type, count, name from entities where type = ? order by count desc`).get(EntityType.URL),
+    db.prepare(`select type, count, name from entities where type = ? 
+    and not name in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.HASHTAG),
+    db.prepare(`select type, count, name from entities where type = ? 
+    and not name in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.CASHHASH),
+    db.prepare(`select type, count, name from entities where type = ? 
+    and not name in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.MENTION),
+    db.prepare(`select type, count, name from entities where type = ? 
+    and not name in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.URL)
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,date) values (?,?,?,date())");
@@ -237,24 +251,28 @@ const fetchWeeklyTopEntities = async () => {
   const weeklyTopEntities: Array<TopEntity> = [
     db
       .prepare(
-        `select type, count, name from top_entities where date > (SELECT DATETIME('now', '-7 day')) and type = ? order by count desc`
+        `select type, count, name from top_entities where 
+        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name in (${EXCLUDED_ENTITIES}) order by count desc`
       )
       .get(EntityType.HASHTAG),
     db
       .prepare(
-        `select type, count, name from top_entities where date > (SELECT DATETIME('now', '-7 day')) and type = ? order by count desc`
+        `select type, count, name from top_entities where 
+        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name in (${EXCLUDED_ENTITIES}) order by count desc`
       )
       .get(EntityType.CASHHASH),
     db
       .prepare(
-        `select type, count, name from top_entities where date > (SELECT DATETIME('now', '-7 day')) and type = ? order by count desc`
+        `select type, count, name from top_entities where
+         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name in (${EXCLUDED_ENTITIES}) order by count desc`
       )
       .get(EntityType.MENTION),
     db
       .prepare(
-        `select type, count, name from top_entities where date > (SELECT DATETIME('now', '-7 day')) and type = ? order by count desc`
+        `select type, count, name from top_entities where
+         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name in (${EXCLUDED_ENTITIES}) order by count desc`
       )
-      .get(EntityType.URL),
+      .get(EntityType.URL)
   ];
 
   return weeklyTopEntities;
@@ -263,7 +281,7 @@ const fetchWeeklyTopEntities = async () => {
 const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, weeklyTopEntities: Array<TopEntity>) => {
   await fs.writeJson(PERIOD_TOP_ENTITIES_PATH, {
     yesterdayTopEntities,
-    weeklyTopEntities,
+    weeklyTopEntities
   });
 };
 
@@ -277,9 +295,9 @@ function success(result: any) {
   return {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": "*"
     },
-    body: JSON.stringify(result),
+    body: JSON.stringify(result)
   };
 }
 
@@ -296,7 +314,7 @@ async function catchErrors(this: any, event: any, context: any) {
     console.error(message);
     return {
       statusCode: 500,
-      body: message,
+      body: message
     };
   }
 }
