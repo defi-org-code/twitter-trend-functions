@@ -9,8 +9,16 @@ const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-to
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 
 const EXCLUDED_ENTITIES = [
-  "defi", "crypto", "cryptocurrency", "cryptocurrencies", "airdrop", "airdrops", "yieldfarming"
-].map(e => `"${e}"`).join(",");
+  "defi",
+  "crypto",
+  "cryptocurrency",
+  "cryptocurrencies",
+  "airdrop",
+  "airdrops",
+  "yieldfarming",
+]
+  .map((e) => `'${e}'`)
+  .join(",");
 
 let db: Database;
 
@@ -115,7 +123,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.CASHHASH,
             name: cashtag.tag,
-            count: t.counterToUpdate
+            count: t.counterToUpdate,
           });
         }
       });
@@ -131,7 +139,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.HASHTAG,
             name: hashtag.tag,
-            count: t.counterToUpdate
+            count: t.counterToUpdate,
           });
         }
       });
@@ -147,7 +155,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.MENTION,
             name: mention.username,
-            count: t.counterToUpdate
+            count: t.counterToUpdate,
           });
         }
       });
@@ -163,7 +171,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
           entities.push({
             type: EntityType.URL,
             name: url.url,
-            count: t.counterToUpdate
+            count: t.counterToUpdate,
           });
         }
       });
@@ -172,7 +180,7 @@ const updateEntities = async (tweets: Array<Tweet>) => {
 
   const entitiesStatement = db.prepare(
     "Insert INTO entities(type,name,count,lastUpdateTime) values (?,?,?,datetime())\n" +
-    "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
+      "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
   db.transaction((entities: Array<Entity>) => {
@@ -191,9 +199,10 @@ const writeTopEntitiesToDisk = async () => {
 };
 
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
-
   const prepareStatement = `select processed, count, name, lastUpdateTime from entities where type = ?
        and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`;
+
+  console.log(prepareStatement);
 
   const hashtags = db.prepare(prepareStatement).all(EntityType.HASHTAG);
   const cashtags = db.prepare(prepareStatement).all(EntityType.CASHHASH);
@@ -204,12 +213,11 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
     hashtags,
     cashtags,
     mentions,
-    urls
+    urls,
   };
 };
 
 const savePeriodTopEntities = async () => {
-
   const preparedStatement = `select type, count, name from entities where type = ? 
     and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
 
@@ -217,7 +225,7 @@ const savePeriodTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.URL),
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,date) values (?,?,?,date())");
@@ -232,7 +240,6 @@ const savePeriodTopEntities = async () => {
 };
 
 const fetchWeeklyTopEntities = async () => {
-
   const preparedStatement = `select type, count, name from top_entities where 
         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
 
@@ -240,7 +247,7 @@ const fetchWeeklyTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.URL),
   ];
 
   return weeklyTopEntities;
@@ -249,7 +256,7 @@ const fetchWeeklyTopEntities = async () => {
 const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, weeklyTopEntities: Array<TopEntity>) => {
   await fs.writeJson(PERIOD_TOP_ENTITIES_PATH, {
     yesterdayTopEntities,
-    weeklyTopEntities
+    weeklyTopEntities,
   });
 };
 
@@ -263,9 +270,9 @@ function success(result: any) {
   return {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "*",
     },
-    body: JSON.stringify(result)
+    body: JSON.stringify(result),
   };
 }
 
@@ -282,7 +289,7 @@ async function catchErrors(this: any, event: any, context: any) {
     console.error(message);
     return {
       statusCode: 500,
-      body: message
+      body: message,
     };
   }
 }
@@ -293,3 +300,7 @@ export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_s
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities)
 );
+
+(async () => {
+  await writer_saveTopEntities({}, {});
+})();
