@@ -10,7 +10,7 @@ const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 
 const EXCLUDED_ENTITIES = [
   "defi", "crypto", "cryptocurrency", "cryptocurrencies", "airdrop", "airdrops", "yieldfarming"
-];
+].map(e => `"${e}"`);
 
 let db: Database;
 
@@ -191,30 +191,14 @@ const writeTopEntitiesToDisk = async () => {
 };
 
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
-  const hashtags = db
-    .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ?
-       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
-    )
-    .all(EntityType.HASHTAG);
-  const cashtags = db
-    .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ?
-       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
-    )
-    .all(EntityType.CASHHASH);
-  const mentions = db
-    .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ?
-       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
-    )
-    .all(EntityType.MENTION);
-  const urls = db
-    .prepare(
-      `select processed, count, name, lastUpdateTime from entities where type = ?
-       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`
-    )
-    .all(EntityType.URL);
+
+  const prepareStatement = `select processed, count, name, lastUpdateTime from entities where type = ?
+       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`;
+
+  const hashtags = db.prepare(prepareStatement).all(EntityType.HASHTAG);
+  const cashtags = db.prepare(prepareStatement).all(EntityType.CASHHASH);
+  const mentions = db.prepare(prepareStatement).all(EntityType.MENTION);
+  const urls = db.prepare(prepareStatement).all(EntityType.URL);
 
   return {
     hashtags,
@@ -225,15 +209,15 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
 };
 
 const savePeriodTopEntities = async () => {
+
+  const preparedStatement = `select type, count, name from entities where type = ? 
+    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
+
   const yesterdayTopEntities: Array<TopEntity> = [
-    db.prepare(`select type, count, name from entities where type = ? 
-    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.HASHTAG),
-    db.prepare(`select type, count, name from entities where type = ? 
-    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.CASHHASH),
-    db.prepare(`select type, count, name from entities where type = ? 
-    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.MENTION),
-    db.prepare(`select type, count, name from entities where type = ? 
-    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.HASHTAG),
+    db.prepare(preparedStatement).get(EntityType.CASHHASH),
+    db.prepare(preparedStatement).get(EntityType.MENTION),
+    db.prepare(preparedStatement).get(EntityType.URL)
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,date) values (?,?,?,date())");
@@ -248,31 +232,15 @@ const savePeriodTopEntities = async () => {
 };
 
 const fetchWeeklyTopEntities = async () => {
+
+  const preparedStatement = `select type, count, name from top_entities where 
+        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
+
   const weeklyTopEntities: Array<TopEntity> = [
-    db
-      .prepare(
-        `select type, count, name from top_entities where 
-        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`
-      )
-      .get(EntityType.HASHTAG),
-    db
-      .prepare(
-        `select type, count, name from top_entities where 
-        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`
-      )
-      .get(EntityType.CASHHASH),
-    db
-      .prepare(
-        `select type, count, name from top_entities where
-         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`
-      )
-      .get(EntityType.MENTION),
-    db
-      .prepare(
-        `select type, count, name from top_entities where
-         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`
-      )
-      .get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.HASHTAG),
+    db.prepare(preparedStatement).get(EntityType.CASHHASH),
+    db.prepare(preparedStatement).get(EntityType.MENTION),
+    db.prepare(preparedStatement).get(EntityType.URL)
   ];
 
   return weeklyTopEntities;
