@@ -16,6 +16,15 @@ const EXCLUDED_ENTITIES = [
   "airdrop",
   "airdrops",
   "yieldfarming",
+  "bsc",
+  "bitcoin",
+  "eth",
+  "binance",
+  "binancesmartchain",
+  "ethereum",
+  "nft",
+  "btc",
+  "binancechain"
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -202,8 +211,6 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
   const prepareStatement = `select processed, count, name, lastUpdateTime from entities where type = ?
        and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`;
 
-  console.log(prepareStatement);
-
   const hashtags = db.prepare(prepareStatement).all(EntityType.HASHTAG);
   const cashtags = db.prepare(prepareStatement).all(EntityType.CASHHASH);
   const mentions = db.prepare(prepareStatement).all(EntityType.MENTION);
@@ -300,7 +307,3 @@ export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_s
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities)
 );
-
-(async () => {
-  await writer_saveTopEntities({}, {});
-})();
