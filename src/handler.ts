@@ -10,7 +10,7 @@ const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 
 const EXCLUDED_ENTITIES = [
   "defi", "crypto", "cryptocurrency", "cryptocurrencies", "airdrop", "airdrops", "yieldfarming"
-].map(e => `"${e}"`);
+].map(e => `"${e}"`).join(",");
 
 let db: Database;
 
