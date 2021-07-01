@@ -307,8 +307,3 @@ export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_s
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities)
 );
-
-(async () => {
-  await writer_saveTopEntities({}, {});
-  await writer_cleanAndSavePeriodTopEntities({}, {});
-})();
