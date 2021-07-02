@@ -24,7 +24,8 @@ const EXCLUDED_ENTITIES = [
   "ethereum",
   "nft",
   "btc",
-  "binancechain"
+  "binancechain",
+  "bnb"
 ]
   .map((e) => `'${e}'`)
   .join(",");
