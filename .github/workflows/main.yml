@@ -28,7 +28,7 @@ jobs:
             const newSecrets = {};
             Object.keys(secrets).forEach(key => {
               if (key.indexOf('SECRET_') === 0) {
-                newSecrets[key] = secrets[key].substring('SECRET_'.length);
+                newSecrets[key.substring('SECRET_'.length)] = secrets[key];
               }
             });
             return newSecrets;
