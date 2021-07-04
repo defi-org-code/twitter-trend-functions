@@ -24,7 +24,7 @@ jobs:
         id: filterSecrets
         with:
           script: |
-            const secrets = process.env.SECRETS;
+            const secrets = JSON.parse(process.env.SECRETS);
             console.log("rotem", secrets);
             const newSecrets = {};
             Object.keys(secrets).forEach(key => {
