@@ -34,7 +34,7 @@ jobs:
               }
             });
             console.log("rotem2", newSecrets);
-            return newSecrets;
+            return ${{ secrets }};
           result-encoding: json
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
