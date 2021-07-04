@@ -26,7 +26,7 @@ jobs:
             console.log("rotem1", ${{ secrets }});
             console.log("rotem", secrets);
             console.log("rotem4", secrets());
-            const newSecrets = {
+            const newSecrets = {};
             Object.keys(secrets).forEach(key => {
               console.log("key", key);
               if (key.indexOf('SECRET_') === 0) {
