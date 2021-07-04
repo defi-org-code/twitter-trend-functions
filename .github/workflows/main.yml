@@ -22,13 +22,17 @@ jobs:
         id: filterSecrets
         with:
           script: |
-            const secrets = ${{ secrets }}
+            const secrets = toJSON(${{ secrets }})
+            console.log("rotem1", ${{ secrets }});
+            console.log("rotem", secrets);
             const newSecrets = {}
             Object.keys(secrets).forEach(key => {
+              console.log("key", key);
               if (key.indexOf('SECRET_') === 0) {
                 newSecrets[key] = secrets[key];
               }
             })
+            console.log("rotem2", newSecrets);
             return newSecrets
           result-encoding: json
       - uses: actions/checkout@v2
