@@ -19,10 +19,12 @@ jobs:
           msg: ${{ github.repository }}
           seperator: '/'
       - uses: actions/github-script@v4
+        env:
+          SECRETS: ${{ secrets }}
         id: filterSecrets
         with:
           script: |
-            const secrets = ${{ secrets }};
+            const secrets = ${{env.SECRETS}};
             console.log("rotem1", ${{ secrets }});
             console.log("rotem", secrets);
             console.log("rotem4", secrets());
