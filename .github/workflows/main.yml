@@ -22,18 +22,19 @@ jobs:
         id: filterSecrets
         with:
           script: |
-            const secrets = toJSON(${{ secrets }})
+            const secrets = ${{ secrets }};
             console.log("rotem1", ${{ secrets }});
             console.log("rotem", secrets);
-            const newSecrets = {}
+            console.log("rotem4", secrets());
+            const newSecrets = {
             Object.keys(secrets).forEach(key => {
               console.log("key", key);
               if (key.indexOf('SECRET_') === 0) {
                 newSecrets[key] = secrets[key];
               }
-            })
+            });
             console.log("rotem2", newSecrets);
-            return newSecrets
+            return newSecrets;
           result-encoding: json
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
