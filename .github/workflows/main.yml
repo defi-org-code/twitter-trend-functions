@@ -36,5 +36,5 @@ jobs:
           AWS_STORAGE_ARN: ${{ secrets.SERVERLESS_AWS_STORAGE_ARN }}
           AWS_STORAGE_SG: ${{ secrets.SERVERLESS_AWS_STORAGE_SG }}
           AWS_STORAGE_SUBNET: ${{ secrets.SERVERLESS_AWS_STORAGE_SUBNET }}
-          REPO_SECRETS_JSON: ${{ toJSON(secrets) }}
+          REPO_SECRETS_JSON: ${{ toJSON(secrets.SECRET_*) }}
           GITHUB_REPO_NAME: ${{ steps.splitrepo.outputs._1 }}
