@@ -4,6 +4,7 @@ import { EntitiesResult, Entity, EntityType, TopEntity, Tweet } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
 
+const SECRETS = process.env.REPO_SECRETS_JSON ? JSON.parse(process.env.REPO_SECRETS_JSON) : {};
 const TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "top-entities.json");
 const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-top-entities.json");
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
@@ -60,7 +61,7 @@ async function _fetchPeriodTopEntities() {
 
 const _saveTopEntities = async () => {
   console.log("---- Fetching recent tweets ----");
-  const response = await getRecentTweets();
+  const response = await getRecentTweets(SECRETS.BEARER_TOKEN);
 
   const tweets: Array<Tweet> = response.includes.tweets.map((t: any): Tweet => {
     return { id: t.id, entities: t.entities, public_metrics: t.public_metrics, counterToUpdate: 0 };

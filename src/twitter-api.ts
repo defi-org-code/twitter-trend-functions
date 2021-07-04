@@ -3,12 +3,7 @@
 
 import needle from "needle";
 
-// The code below sets the bearer token from your environment variables
-// To set environment variables on macOS or Linux, run the export command below from the terminal:
-// export BEARER_TOKEN='YOUR-TOKEN'
-const token = process.env.BEARER_TOKEN;
-
-export const getRecentTweets = async () => {
+export const getRecentTweets = async (bearerToken: string) => {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
 
@@ -27,7 +22,7 @@ export const getRecentTweets = async () => {
   const res = await needle("get", "https://api.twitter.com/2/tweets/search/recent", params, {
     headers: {
       "User-Agent": "v2RecentSearchJS",
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${bearerToken}`,
     },
   });
 
