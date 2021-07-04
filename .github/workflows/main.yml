@@ -20,7 +20,7 @@ jobs:
           seperator: '/'
       - uses: actions/github-script@v4
         env:
-          SECRETS: ${{ fromJson(secrets) }}
+          SECRETS: ${{ toJson(secrets) }}
         id: filterSecrets
         with:
           script: |
