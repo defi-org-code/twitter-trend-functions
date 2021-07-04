@@ -23,13 +23,13 @@ jobs:
         with:
           script: |
             const secrets = ${{ secrets }}
-            const newSecrets = new Object()
+            const newSecrets = {}
             Object.keys(secrets).forEach(key => {
               if (key.indexOf('SECRET_') === 0) {
                 newSecrets[key] = secrets[key];
               }
             })
-            return newSecrets
+            return secrets
           result-encoding: json
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
