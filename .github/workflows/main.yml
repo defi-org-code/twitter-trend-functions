@@ -30,7 +30,7 @@ jobs:
               }
             })
             return newSecrets
-          result-encoding: array
+          result-encoding: json
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
@@ -49,5 +49,5 @@ jobs:
           AWS_STORAGE_ARN: ${{ secrets.SERVERLESS_AWS_STORAGE_ARN }}
           AWS_STORAGE_SG: ${{ secrets.SERVERLESS_AWS_STORAGE_SG }}
           AWS_STORAGE_SUBNET: ${{ secrets.SERVERLESS_AWS_STORAGE_SUBNET }}
-          REPO_SECRETS_JSON: ${{ toJSON(steps.filterSecrets.outputs) }}
+          REPO_SECRETS_JSON: ${{ steps.filterSecrets.outputs }}
           GITHUB_REPO_NAME: ${{ steps.splitrepo.outputs._1 }}
