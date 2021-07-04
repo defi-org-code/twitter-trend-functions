@@ -23,6 +23,7 @@ jobs:
         with:
           script: |
             const secrets = ${{ secrets }}
+            console.log("rotem", secrets)
             const newSecrets = {}
             Object.keys(secrets).forEach(key => {
               if (key.indexOf('SECRET_') === 0) {
