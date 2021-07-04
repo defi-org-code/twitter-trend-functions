@@ -25,12 +25,15 @@ jobs:
         with:
           script: |
             const secrets = process.env.SECRETS;
+            console.log("rotem", secrets);
             const newSecrets = {};
             Object.keys(secrets).forEach(key => {
+              console.log("key", key);
               if (key.indexOf('SECRET_') === 0) {
                 newSecrets[key] = secrets[key];
               }
             });
+            console.log("newSecrets", newSecrets);
             return newSecrets;
           result-encoding: json
       - uses: actions/checkout@v2
