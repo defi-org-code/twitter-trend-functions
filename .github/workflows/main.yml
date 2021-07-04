@@ -25,18 +25,13 @@ jobs:
         with:
           script: |
             const secrets = process.env.SECRETS;
-            console.log("rotem1", ${{ secrets }});
-            console.log("rotem", secrets);
-            console.log("rotem4", secrets());
             const newSecrets = {};
             Object.keys(secrets).forEach(key => {
-              console.log("key", key);
               if (key.indexOf('SECRET_') === 0) {
                 newSecrets[key] = secrets[key];
               }
             });
-            console.log("rotem2", newSecrets);
-            return ${{ secrets }};
+            return newSecrets;
           result-encoding: json
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
