@@ -6,6 +6,7 @@ tags:
 environment:
   ROOT_DIR: /mnt/efs
   HOME_DIR: /mnt/efs/${self:service}
+  BEARER_TOKEN: ${env:BEARER_TOKEN}
 stackTags:
   Project: ${self:custom.PROJECT}
 deploymentBucket:
