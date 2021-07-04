@@ -21,7 +21,15 @@ jobs:
       - uses: actions/github-script@v4
         id: filterSecrets
         with:
-          script: return ${{ secrets }}.filter(s => s);
+          script: |
+          const secrets = ${{ secrets }};
+          const newSecrets = {};
+          Object.keys(secrets).forEach(key => {
+            if (key.indexOf('SECRET_') === 0) {
+              newSecrets[key] = secrets[key];
+            }
+          });
+          return newSecrets;
           result-encoding: array
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
