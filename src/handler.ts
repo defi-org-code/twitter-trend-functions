@@ -1,6 +1,6 @@
 import path from "path";
 import { getRecentTweets } from "./twitter-api";
-import { EntitiesResult, Entity, EntityType, TopEntity, Tweet } from "./types";
+import { EntitiesResult, Entity, EntityType, RecentResults, Status, TopEntity } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
 
@@ -8,6 +8,7 @@ const SECRETS = process.env.REPO_SECRETS_JSON ? JSON.parse(process.env.REPO_SECR
 const TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "top-entities.json");
 const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-top-entities.json");
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
+const MONTH = 30 * 24 * 60 * 60 * 1000;
 
 const EXCLUDED_ENTITIES = [
   "defi",
@@ -26,7 +27,8 @@ const EXCLUDED_ENTITIES = [
   "nft",
   "btc",
   "binancechain",
-  "bnb"
+  "bnb",
+  "altcoin",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -37,12 +39,12 @@ const ensureDBIsReady = () => {
   if (!db) {
     db = sqlite3(DB_PATH);
 
-    db.exec("CREATE TABLE IF NOT EXISTS tweets (id TEXT PRIMARY KEY, count INTEGER)");
+    db.exec("CREATE TABLE IF NOT EXISTS tweets (id TEXT PRIMARY KEY)");
     db.exec(
-      "CREATE TABLE IF NOT EXISTS entities (name TEXT, type INTEGER, count INTEGER, processed INTEGER, lastUpdateTime TEXT, PRIMARY KEY (name, type))"
+      "CREATE TABLE IF NOT EXISTS entities (name TEXT, type INTEGER, count INTEGER, processed INTEGER, lastUpdateTime TEXT, extra TEXT, PRIMARY KEY (name, type))"
     );
     db.exec(
-      "CREATE TABLE IF NOT EXISTS top_entities (name TEXT, type INTEGER, count INTEGER, date TEXT, PRIMARY KEY (name, type, date))"
+      "CREATE TABLE IF NOT EXISTS top_entities (name TEXT, type INTEGER, count INTEGER, extra TEXT, date TEXT, PRIMARY KEY (name, type, date))"
     );
   }
 };
@@ -59,57 +61,103 @@ async function _fetchPeriodTopEntities() {
 
 // ############ WRITERS #############
 
-const _saveTopEntities = async () => {
+const _saveTopEntities = async (bearerToken: string) => {
   console.log("---- Fetching recent tweets ----");
-  const response = await getRecentTweets(SECRETS.BEARER_TOKEN);
 
-  const tweets: Array<Tweet> = response.includes.tweets.map((t: any): Tweet => {
-    return { id: t.id, entities: t.entities, public_metrics: t.public_metrics, counterToUpdate: 0 };
-  });
+  let maxId: string | null = null;
 
-  console.log("---- Updating tweets ----");
-  for (const t of tweets) {
-    t.counterToUpdate = await updateTweet(t);
+  for (let runs = 0; runs < 19; runs++) {
+    console.log(`---- Loop number ${runs} ----`);
+    const response: RecentResults = await getRecentTweets(bearerToken, maxId);
+
+    // Max id to page to the next result
+    maxId = extractMaxId(response.search_metadata.next_results);
+
+    // Filtering bots
+    const statuses = response.statuses.filter((status: Status) => {
+      return (
+        new Date(status.user.created_at).getTime() < new Date().getTime() - MONTH &&
+        status.user.followers_count > 0 &&
+        !status.user.default_profile_image
+      );
+    });
+
+    // Keep for debugging1
+    // if (statuses.length !== response.statuses.length) {
+    //   console.log("Amount of statuses filtered", response.statuses.length - statuses.length);
+    //   response.statuses
+    //     .filter((status: Status) => statuses.some((s: Status) => status.id_str === s.id_str))
+    //     .forEach((status: Status) => {
+    //       if (new Date(status.user.created_at).getTime() > new Date().getTime() - MONTH) {
+    //         console.log("---- User is not month old ----", new Date(status.user.created_at));
+    //       }
+    //       if (status.user.followers_count > 0) {
+    //         console.log("---- User does not have any followers ----");
+    //       }
+    //       if (!status.user.default_profile_image) {
+    //         console.log("---- User has a default profile image ----");
+    //       }
+    //     });
+    // } else {
+    //   console.log("---- No users were filtered ----");
+    // }
+
+    console.log("---- Inserting tweets ----");
+    await updateTweets(statuses);
+
+    console.log("---- Processing entities ----");
+    await setProcessedEntities();
+
+    console.log("---- Update entities ----");
+    await updateEntities(statuses);
+
+    console.log("---- Writing result ----");
+    await writeTopEntitiesToDisk();
+
+    await sleep(3000);
   }
-
-  console.log("---- Processing entities ----");
-  await setProcessedEntities();
-
-  console.log("---- Update entities ----");
-  await updateEntities(tweets);
-
-  console.log("---- Writing result ----");
-  await writeTopEntitiesToDisk();
 
   return success("OK");
 };
 
-const _cleanAndSavePeriodTopEntities = async () => {
+const _cleanAndSavePeriodTopEntities = async (bearerToken: string) => {
   console.log("---- Save Period Top Entities ----");
   const yesterdayTopEntities = await savePeriodTopEntities();
   const weeklyTopEntities = await fetchWeeklyTopEntities();
   console.log("---- Write Period Top Entities ----");
   await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
   console.log("---- Truncating entities ----");
-  await truncateEntities();
+  await truncateData();
   // Refilling info for new day
-  await _saveTopEntities();
+  await _saveTopEntities(bearerToken);
 };
 
 // ############ INTERNALS #############
 
-const updateTweet = async (tweet: Tweet) => {
-  let count = tweet.public_metrics.retweet_count + tweet.public_metrics.quote_count;
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  const prev: any = db.prepare("select * from tweets where id = ?").get(tweet.id);
+const extractMaxId = (next_results: string) => {
+  const queryParameters: any = new URL(`http://localhost${next_results}`);
+  return queryParameters.searchParams.get("max_id");
+};
 
-  if (!prev) {
-    db.prepare("insert into tweets values (?,?)").run(tweet.id, count);
-    return count;
-  } else {
-    db.prepare("update tweets set count = ? where id = ?").run(count, tweet.id);
-    return count - prev.count;
-  }
+const updateTweets = async (statuses: Array<Status>) => {
+  const result: Array<string> = db
+    .prepare(`select * from tweets where id in (${statuses.map((s) => `'${s.id_str}'`).join(",")})`)
+    .all()
+    .map((t) => t.id);
+
+  statuses = statuses.filter((s: Status) => !result.includes(s.id_str));
+
+  const tweetsStatement = db.prepare("insert into tweets values (?)");
+
+  db.transaction((statuses: Array<Status>) => {
+    statuses.forEach((status: Status) => {
+      tweetsStatement.run(status.id_str);
+    });
+  })(statuses);
 };
 
 const setProcessedEntities = async () => {
@@ -120,69 +168,71 @@ const setProcessedEntities = async () => {
     .run();
 };
 
-const updateEntities = async (tweets: Array<Tweet>) => {
+const updateEntities = async (statuses: Array<Status>) => {
   const entities: Array<Entity> = [];
 
-  tweets.forEach((t: Tweet) => {
-    if (t.entities.cashtags) {
-      t.entities.cashtags.forEach((cashtag) => {
-        const entity = entities.find((e) => e.name === cashtag.tag && e.type === EntityType.CASHHASH);
+  statuses.forEach((status: Status) => {
+    if (status.entities.symbols) {
+      status.entities.symbols.forEach(({ text: cashtag }) => {
+        const entity = entities.find((e) => e.name === cashtag && e.type === EntityType.CASHHASH);
 
         if (entity) {
-          entity.count += t.counterToUpdate;
+          entity.count += 1;
         } else {
           entities.push({
             type: EntityType.CASHHASH,
-            name: cashtag.tag,
-            count: t.counterToUpdate,
+            name: cashtag,
+            count: 1,
           });
         }
       });
     }
 
-    if (t.entities.hashtags) {
-      t.entities.hashtags.forEach((hashtag) => {
-        const entity = entities.find((e) => e.name === hashtag.tag && e.type === EntityType.HASHTAG);
+    if (status.entities.hashtags) {
+      status.entities.hashtags.forEach(({ text: hashtag }) => {
+        const entity = entities.find((e) => e.name === hashtag && e.type === EntityType.HASHTAG);
 
         if (entity) {
-          entity.count += t.counterToUpdate;
+          entity.count += 1;
         } else {
           entities.push({
             type: EntityType.HASHTAG,
-            name: hashtag.tag,
-            count: t.counterToUpdate,
+            name: hashtag,
+            count: 1,
           });
         }
       });
     }
 
-    if (t.entities.mentions) {
-      t.entities.mentions.forEach((mention) => {
-        const entity = entities.find((e) => e.name === mention.username && e.type === EntityType.MENTION);
+    if (status.entities.user_mentions) {
+      status.entities.user_mentions.forEach(({ screen_name: mention, name }) => {
+        const entity = entities.find((e) => e.name === mention && e.type === EntityType.MENTION);
 
         if (entity) {
-          entity.count += t.counterToUpdate;
+          entity.count += 1;
         } else {
           entities.push({
             type: EntityType.MENTION,
-            name: mention.username,
-            count: t.counterToUpdate,
+            name: mention,
+            extra: name,
+            count: 1,
           });
         }
       });
     }
 
-    if (t.entities.urls) {
-      t.entities.urls.forEach((url) => {
-        const entity = entities.find((e) => e.name === url.url && e.type === EntityType.URL);
+    if (status.entities.urls) {
+      status.entities.urls.forEach(({ url, expanded_url }) => {
+        const entity = entities.find((e) => e.name === url && e.type === EntityType.URL);
 
         if (entity) {
-          entity.count += t.counterToUpdate;
+          entity.count += 1;
         } else {
           entities.push({
             type: EntityType.URL,
-            name: url.url,
-            count: t.counterToUpdate,
+            name: url,
+            extra: expanded_url,
+            count: 1,
           });
         }
       });
@@ -190,13 +240,13 @@ const updateEntities = async (tweets: Array<Tweet>) => {
   });
 
   const entitiesStatement = db.prepare(
-    "Insert INTO entities(type,name,count,lastUpdateTime) values (?,?,?,datetime())\n" +
+    "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
       "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
   db.transaction((entities: Array<Entity>) => {
     entities.forEach((entity) => {
-      entitiesStatement.run(entity.type, entity.name, entity.count, entity.count);
+      entitiesStatement.run(entity.type, entity.name, entity.count, entity.extra, entity.count);
     });
   })(entities);
 
@@ -210,7 +260,7 @@ const writeTopEntitiesToDisk = async () => {
 };
 
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
-  const prepareStatement = `select processed, count, name, lastUpdateTime from entities where type = ?
+  const prepareStatement = `select processed, count, name, extra, lastUpdateTime from entities where type = ?
        and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`;
 
   const hashtags = db.prepare(prepareStatement).all(EntityType.HASHTAG);
@@ -227,7 +277,7 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
 };
 
 const savePeriodTopEntities = async () => {
-  const preparedStatement = `select type, count, name from entities where type = ? 
+  const preparedStatement = `select type, count, name, extra from entities where type = ? 
     and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
 
   const yesterdayTopEntities: Array<TopEntity> = [
@@ -237,11 +287,11 @@ const savePeriodTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.URL),
   ].filter((e) => !!e);
 
-  const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,date) values (?,?,?,date())");
+  const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,extra,date) values (?,?,?,?,date())");
 
   db.transaction((entities: Array<TopEntity>) => {
     entities.forEach((entity: TopEntity) => {
-      entitiesStatement.run(entity.type, entity.name, entity.count);
+      entitiesStatement.run(entity.type, entity.name, entity.count, entity.extra);
     });
   })(yesterdayTopEntities);
 
@@ -249,7 +299,7 @@ const savePeriodTopEntities = async () => {
 };
 
 const fetchWeeklyTopEntities = async () => {
-  const preparedStatement = `select type, count, name from top_entities where 
+  const preparedStatement = `select type, count, name, extra from top_entities where 
         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
 
   const weeklyTopEntities: Array<TopEntity> = [
@@ -269,8 +319,9 @@ const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, we
   });
 };
 
-const truncateEntities = async () => {
+const truncateData = async () => {
   db.prepare("DELETE FROM entities").run();
+  db.prepare("DELETE FROM tweets").run();
 };
 
 // ############ WRAPPERS #############
@@ -305,7 +356,11 @@ async function catchErrors(this: any, event: any, context: any) {
 
 export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntities));
 export const reader_fetchPeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchPeriodTopEntities));
-export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_saveTopEntities));
-export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
-  beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities)
+export const writer_saveTopEntities = catchErrors.bind(
+  beforeRunningFunc.bind(_saveTopEntities.bind(null, SECRETS.BEARER_TOKEN))
 );
+export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
+  beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities.bind(null, SECRETS.BEARER_TOKEN))
+);
+
+fs.unlinkSync(DB_PATH);
