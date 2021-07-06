@@ -1,6 +1,6 @@
 import path from "path";
 import { getRecentTweets } from "./twitter-api";
-import { EntitiesResult, Entity, EntityType, RecentResults, Status, TopEntity } from "./types";
+import { Entities, EntitiesResult, Entity, EntityType, RecentResults, Status, TopEntity } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
 
@@ -169,66 +169,79 @@ const setProcessedEntities = async () => {
 };
 
 const updateEntities = async (statuses: Array<Status>) => {
-  const entities: Array<Entity> = [];
+  const entitiesToSave: Array<Entity> = [];
 
   statuses.forEach((status: Status) => {
-    if (status.entities.symbols) {
-      status.entities.symbols.forEach(({ text: cashtag }) => {
-        const entity = entities.find((e) => e.name === cashtag && e.type === EntityType.CASHHASH);
+    let entities: Entities = {
+      hashtags: [],
+      symbols: [],
+      urls: [],
+      user_mentions: [],
+    };
 
-        if (entity) {
-          entity.count += 1;
-        } else {
-          entities.push({
-            type: EntityType.CASHHASH,
-            name: cashtag,
-            count: 1,
-          });
-        }
-      });
+    if (status.quoted_status) {
+      entities.hashtags = status.entities.hashtags.concat(status.quoted_status.entities.hashtags);
+      entities.symbols = status.entities.symbols.concat(status.quoted_status.entities.symbols);
+      entities.urls = status.entities.urls.concat(status.quoted_status.entities.urls);
+      entities.user_mentions = status.entities.user_mentions.concat(status.quoted_status.entities.user_mentions);
+    } else if (status.retweeted_status) {
+      entities = status.retweeted_status.entities;
+    } else {
+      entities = status.entities;
     }
 
-    if (status.entities.hashtags) {
-      status.entities.hashtags.forEach(({ text: hashtag }) => {
-        const entity = entities.find((e) => e.name === hashtag && e.type === EntityType.HASHTAG);
+    entities.symbols.forEach(({ text: cashtag }) => {
+      const entity = entitiesToSave.find((e) => e.name === cashtag && e.type === EntityType.CASHHASH);
+
+      if (entity) {
+        entity.count += 1;
+      } else {
+        entitiesToSave.push({
+          type: EntityType.CASHHASH,
+          name: cashtag,
+          count: 1,
+        });
+      }
+    });
+
+    entities.hashtags.forEach(({ text: hashtag }) => {
+      const entity = entitiesToSave.find((e) => e.name === hashtag && e.type === EntityType.HASHTAG);
+
+      if (entity) {
+        entity.count += 1;
+      } else {
+        entitiesToSave.push({
+          type: EntityType.HASHTAG,
+          name: hashtag,
+          count: 1,
+        });
+      }
+    });
+
+    entities.user_mentions.forEach(({ screen_name: mention, name }) => {
+      const entity = entitiesToSave.find((e) => e.name === mention && e.type === EntityType.MENTION);
+
+      if (entity) {
+        entity.count += 1;
+      } else {
+        entitiesToSave.push({
+          type: EntityType.MENTION,
+          name: mention,
+          extra: name,
+          count: 1,
+        });
+      }
+    });
+
+    entities.urls
+      .filter(({ expanded_url }) => expanded_url.indexOf("twitter.com") === -1)
+      .forEach(({ url, expanded_url }) => {
+        const entity = entitiesToSave.find((e) => e.name === url && e.type === EntityType.URL);
 
         if (entity) {
           entity.count += 1;
         } else {
-          entities.push({
-            type: EntityType.HASHTAG,
-            name: hashtag,
-            count: 1,
-          });
-        }
-      });
-    }
-
-    if (status.entities.user_mentions) {
-      status.entities.user_mentions.forEach(({ screen_name: mention, name }) => {
-        const entity = entities.find((e) => e.name === mention && e.type === EntityType.MENTION);
-
-        if (entity) {
-          entity.count += 1;
-        } else {
-          entities.push({
-            type: EntityType.MENTION,
-            name: mention,
-            extra: name,
-            count: 1,
-          });
-        }
-      });
-    }
-
-    if (status.entities.urls) {
-      status.entities.urls.forEach(({ url, expanded_url }) => {
-        const entity = entities.find((e) => e.name === url && e.type === EntityType.URL);
-
-        if (entity) {
-          entity.count += 1;
-        } else {
-          entities.push({
+          entitiesToSave.push({
             type: EntityType.URL,
             name: url,
             extra: expanded_url,
@@ -236,11 +249,10 @@ const updateEntities = async (statuses: Array<Status>) => {
           });
         }
       });
-    }
   });
 
   const entitiesStatement = db.prepare(
-    "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
+    "Insert INTO entitiesToSave(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
       "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
@@ -248,7 +260,7 @@ const updateEntities = async (statuses: Array<Status>) => {
     entities.forEach((entity) => {
       entitiesStatement.run(entity.type, entity.name, entity.count, entity.extra, entity.count);
     });
-  })(entities);
+  })(entitiesToSave);
 
   console.log("done updateEntities");
 };
