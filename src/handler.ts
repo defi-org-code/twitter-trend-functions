@@ -32,6 +32,18 @@ const EXCLUDED_ENTITIES = [
   "bnb",
   "altcoin",
   "Blockchain",
+  "giveaway",
+  "BSCGems",
+  "Giveaways",
+  "cryptonews",
+  "ElonMusk",
+  "cryptoart",
+  "PancakeSwap",
+  "nftart",
+  "NFTCommunity",
+  "HODL",
+  "Cryptocurency",
+  "GiveawayAlert",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -64,7 +76,7 @@ async function _fetchPeriodTopEntities() {
 
 // ############ WRITERS #############
 
-const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 19) => {
+const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
   console.log("---- Fetching recent tweets ----");
 
   let maxId: string | null = null;

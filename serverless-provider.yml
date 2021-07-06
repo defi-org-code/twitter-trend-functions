@@ -1,6 +1,7 @@
 name: aws
 runtime: nodejs14.x
 region: us-east-2
+versionFunctions: false
 tags:
   Project: ${self:custom.PROJECT}
 environment:
