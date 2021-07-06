@@ -64,13 +64,13 @@ async function _fetchPeriodTopEntities() {
 
 // ############ WRITERS #############
 
-const _saveTopEntities = async (bearerToken: string) => {
+const _saveTopEntities = async (bearerToken: string, runs: number = 19) => {
   console.log("---- Fetching recent tweets ----");
 
   let maxId: string | null = null;
 
-  for (let runs = 0; runs < 19; runs++) {
-    console.log(`---- Loop number ${runs} ----`);
+  for (let _runs = 0; _runs < runs; _runs++) {
+    console.log(`---- Loop number ${_runs} ----`);
     const response: RecentResults = await getRecentTweets(bearerToken, maxId);
 
     // Max id to page to the next result
@@ -117,7 +117,7 @@ const _saveTopEntities = async (bearerToken: string) => {
     console.log("---- Writing result ----");
     await writeTopEntitiesToDisk();
 
-    await sleep(5000);
+    await sleep(3000);
   }
 
   return success("OK");
@@ -132,7 +132,7 @@ const _cleanAndSavePeriodTopEntities = async (bearerToken: string) => {
   console.log("---- Truncating entities ----");
   await truncateData();
   // Refilling info for new day
-  await _saveTopEntities(bearerToken);
+  await _saveTopEntities(bearerToken, 3);
 };
 
 // ############ INTERNALS #############
