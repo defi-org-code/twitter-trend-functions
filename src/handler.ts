@@ -29,6 +29,7 @@ const EXCLUDED_ENTITIES = [
   "binancechain",
   "bnb",
   "altcoin",
+  "Blockchain"
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -374,5 +375,3 @@ export const writer_saveTopEntities = catchErrors.bind(
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities.bind(null, SECRETS.BEARER_TOKEN))
 );
-
-fs.unlinkSync(DB_PATH);
