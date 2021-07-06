@@ -31,7 +31,7 @@ const EXCLUDED_ENTITIES = [
   "binancechain",
   "bnb",
   "altcoin",
-  "Blockchain"
+  "Blockchain",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -64,7 +64,7 @@ async function _fetchPeriodTopEntities() {
 
 // ############ WRITERS #############
 
-const _saveTopEntities = async (bearerToken: string, runs: number = 19) => {
+const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 19) => {
   console.log("---- Fetching recent tweets ----");
 
   let maxId: string | null = null;
@@ -123,7 +123,7 @@ const _saveTopEntities = async (bearerToken: string, runs: number = 19) => {
   return success("OK");
 };
 
-const _cleanAndSavePeriodTopEntities = async (bearerToken: string) => {
+const _cleanAndSavePeriodTopEntities = async (bearerToken: string, event: any, context: any) => {
   console.log("---- Save Period Top Entities ----");
   const yesterdayTopEntities = await savePeriodTopEntities();
   const weeklyTopEntities = await fetchWeeklyTopEntities();
@@ -132,7 +132,7 @@ const _cleanAndSavePeriodTopEntities = async (bearerToken: string) => {
   console.log("---- Truncating entities ----");
   await truncateData();
   // Refilling info for new day
-  await _saveTopEntities(bearerToken, 3);
+  await _saveTopEntities(bearerToken, event, context, 3);
 };
 
 // ############ INTERNALS #############
