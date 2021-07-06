@@ -25,7 +25,9 @@ const EXCLUDED_ENTITIES = [
   "binancesmartchain",
   "ethereum",
   "nft",
+  "nfts",
   "btc",
+  "trading",
   "binancechain",
   "bnb",
   "altcoin",
@@ -115,7 +117,7 @@ const _saveTopEntities = async (bearerToken: string) => {
     console.log("---- Writing result ----");
     await writeTopEntitiesToDisk();
 
-    await sleep(3000);
+    await sleep(5000);
   }
 
   return success("OK");
