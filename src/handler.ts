@@ -253,7 +253,7 @@ const updateEntities = async (statuses: Array<Status>) => {
   });
 
   const entitiesStatement = db.prepare(
-    "Insert INTO entitiesToSave(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
+    "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
       "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
@@ -375,3 +375,5 @@ export const writer_saveTopEntities = catchErrors.bind(
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities.bind(null, SECRETS.BEARER_TOKEN))
 );
+
+fs.unlinkSync(DB_PATH);
