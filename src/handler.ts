@@ -201,6 +201,8 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   //  await sleep(3000);
   //}
 
+  console.log("currentRun < runs", currentRun < runs);
+
   return success(
     {
       maxId,
