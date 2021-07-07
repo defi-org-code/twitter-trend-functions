@@ -136,6 +136,8 @@ const _cleanDB = async (event: any, context: any) => {
 
 const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
   console.log("---- Fetching recent tweets ----");
+  console.log("event", event);
+  console.log("event - taskresult", event['taskresult']);
 
   let maxId: string | null = null;
 
@@ -191,7 +193,9 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   //  await sleep(3000);
   //}
 
-  return success("OK");
+  return success({
+    maxId
+  });
 };
 
 const _cleanAndSavePeriodTopEntities = async () => {

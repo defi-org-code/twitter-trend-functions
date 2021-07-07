@@ -28,6 +28,7 @@ stepFunctions:
             Type: Task
             Resource:
               Fn::GetAtt: [writer_saveTopEntities, Arn]
+            ResultPath: "$.taskresult"
             Next: wait
           wait:
             Type: Wait
