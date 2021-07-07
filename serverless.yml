@@ -24,7 +24,7 @@ functions:
     timeout: 60
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
-      - schedule: cron(0 0 * * ? *) # examples: rate(1 minute), rate(60 minutes), cron(0 12 * * ? *)
+      - schedule: cron(59 23 * * ? *) # examples: rate(1 minute), rate(60 minutes), cron(0 12 * * ? *)
   reader_fetchTopEntities:
     handler: dist/index.reader_fetchTopEntities
     fileSystemConfig: ${file(./serverless-fs.yml)}

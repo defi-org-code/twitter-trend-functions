@@ -89,7 +89,6 @@ const _cleanDB = async (event: any, context: any) => {
     db.prepare("DELETE FROM tweets").run();
   } else if (param === "top") {
     db.prepare("DELETE FROM top_entities").run();
-    await _writePeriodTopEntities();
   } else if (param === "entities") {
     db.prepare("DELETE FROM entities").run();
   } else if (param === "tweets") {
