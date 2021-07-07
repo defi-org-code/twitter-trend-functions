@@ -3,6 +3,7 @@ import { getRecentTweets } from "./twitter-api";
 import { Entities, EntitiesResult, Entity, EntityType, RecentResults, Status, TopEntity } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
+import { createHash } from "crypto";
 
 const SECRETS = process.env.REPO_SECRETS_JSON ? JSON.parse(process.env.REPO_SECRETS_JSON) : {};
 const TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "top-entities.json");
@@ -77,6 +78,24 @@ async function _fetchPeriodTopEntities() {
 
 // ############ WRITERS #############
 
+const _cleanDB = async (event: any, context: any) => {
+  console.log("---- Cleaning DB ----");
+
+  const param = event.pathParameters.param;
+
+  if (param === "all") {
+    db.prepare("DELETE FROM top_entities").run();
+    db.prepare("DELETE FROM entities").run();
+    db.prepare("DELETE FROM tweets").run();
+  } else if (param === "top") {
+    db.prepare("DELETE FROM top_entities").run();
+  } else if (param === "entities") {
+    db.prepare("DELETE FROM entities").run();
+  } else if (param === "tweets") {
+    db.prepare("DELETE FROM tweets").run();
+  }
+};
+
 const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
   console.log("---- Fetching recent tweets ----");
 
@@ -136,7 +155,7 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   return success("OK");
 };
 
-const _cleanAndSavePeriodTopEntities = async (bearerToken: string, event: any, context: any) => {
+const _cleanAndSavePeriodTopEntities = async () => {
   console.log("---- Save Period Top Entities ----");
   const yesterdayTopEntities = await savePeriodTopEntities();
   const weeklyTopEntities = await fetchWeeklyTopEntities();
@@ -144,8 +163,6 @@ const _cleanAndSavePeriodTopEntities = async (bearerToken: string, event: any, c
   await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
   console.log("---- Truncating entities ----");
   await truncateData();
-  // Refilling info for new day
-  await _saveTopEntities(bearerToken, event, context, 3);
 };
 
 // ############ INTERNALS #############
@@ -382,11 +399,24 @@ async function catchErrors(this: any, event: any, context: any) {
   }
 }
 
+async function authorize(this: any, event: any, context: any) {
+  const secret = event.pathParameters.secret;
+
+  if (
+    createHash("sha256").update(secret).digest("hex") ===
+    "31c9e5d9c2c530ff6433380c75fe5eacac4eb4877a50c8934defb4c6b39a0554"
+  ) {
+    return await this(event, context);
+  } else {
+    return {
+      statusCode: 401,
+      body: "Unauthorized",
+    };
+  }
+}
+
 export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntities));
 export const reader_fetchPeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchPeriodTopEntities));
-export const writer_saveTopEntities = catchErrors.bind(
-  beforeRunningFunc.bind(_saveTopEntities.bind(null, SECRETS.BEARER_TOKEN))
-);
-export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
-  beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities.bind(null, SECRETS.BEARER_TOKEN))
-);
+export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_saveTopEntities.bind(null, SECRETS.BEARER_TOKEN)));
+export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities));
+export const writer_cleanDB = authorize.bind(catchErrors.bind(beforeRunningFunc.bind(_cleanDB)));

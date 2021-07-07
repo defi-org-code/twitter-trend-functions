@@ -41,3 +41,11 @@ functions:
           path: fetchPeriodTopEntities
           method: get
           cors: true
+  writer_cleanDB:
+    handler: dist/index.writer_cleanDB
+    fileSystemConfig: ${file(./serverless-fs.yml)}
+    events:
+      - http:
+          path: cleanDB/{param}/{secret}
+          method: get
+          cors: true
