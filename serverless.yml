@@ -37,7 +37,7 @@ stepFunctions:
                 BooleanEquals: true
                 Next: Wait
             Default: Done
-          wait:
+          Wait:
             Type: Wait
             Seconds: 3
             Next: Iterator
