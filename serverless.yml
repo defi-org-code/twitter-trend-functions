@@ -23,21 +23,21 @@ stepFunctions:
         - schedule: rate(1 minute) # examples: rate(1 minute), rate(60 minutes)
       definition:
         StartAt: FirstState
-          States:
-            FirstState:
+        States:
+          FirstState:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [writer_saveTopEntities, Arn]
+            Next: wait
+            wait:
+              Type: Wait
+              Seconds: 10
+              Next: FinalState
+            FinalState:
               Type: Task
               Resource:
                 Fn::GetAtt: [writer_saveTopEntities, Arn]
-              Next: wait
-              wait:
-                Type: Wait
-                Seconds: 10
-                Next: FinalState
-              FinalState:
-                Type: Task
-                Resource:
-                  Fn::GetAtt: [writer_saveTopEntities, Arn]
-                End: true
+              End: true
 
 functions:
   writer_saveTopEntities:
