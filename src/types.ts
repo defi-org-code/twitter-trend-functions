@@ -6,6 +6,8 @@ export type User = {
   default_profile_image: boolean;
   created_at: string;
   profile_image_url_https: string;
+  name: string;
+  screen_name: string;
 };
 
 export type Entities = {
@@ -23,6 +25,24 @@ export type Entities = {
     url: string;
     expanded_url: string;
   }>;
+};
+
+export type UserResponse = {
+  name: string;
+  displayName: string;
+  followers: number;
+  following: number;
+  profileImage: string;
+};
+
+export type TweetResponse = {
+  text: string;
+  user: UserResponse;
+};
+
+export type TweetsResponse = {
+  sinceId: string;
+  tweets: Array<TweetResponse>;
 };
 
 export type Status = {

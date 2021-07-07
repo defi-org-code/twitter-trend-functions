@@ -3,7 +3,13 @@
 
 import needle from "needle";
 
-export const getRecentTweets = async (bearerToken: string, max_id?: string | null) => {
+export const getRecentTweets = async (
+  bearerToken: string,
+  count: number = 100,
+  max_id?: string | null,
+  filter?: string,
+  sinceId?: string
+) => {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
 
@@ -11,15 +17,19 @@ export const getRecentTweets = async (bearerToken: string, max_id?: string | nul
   // specify a search query, and any additional fields that are required
   // by default, only the Tweet ID and text fields are returned
   const params: any = {
-    q: `(#defi OR #crypto OR #cryptocurrency) since:${todayUTC.toISOString().substring(0, 10)}`,
+    q: `${filter} since:${todayUTC.toISOString().substring(0, 10)}`,
     result_type: "recent",
     include_entities: true,
     tweet_mode: "extended",
-    count: 100,
+    count: count,
   };
 
   if (max_id) {
     params.max_id = max_id;
+  }
+
+  if (sinceId) {
+    params.since_id = sinceId;
   }
 
   const res = await needle("get", "https://api.twitter.com/1.1/search/tweets.json", params, {

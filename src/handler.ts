@@ -1,6 +1,16 @@
 import path from "path";
 import { getRecentTweets } from "./twitter-api";
-import { Entities, EntitiesResult, Entity, EntityType, RecentResults, Status, TopEntity } from "./types";
+import {
+  Entities,
+  EntitiesResult,
+  Entity,
+  EntityType,
+  RecentResults,
+  Status,
+  TopEntity,
+  TweetResponse,
+  TweetsResponse
+} from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
 import { createHash } from "crypto";
@@ -45,7 +55,7 @@ const EXCLUDED_ENTITIES = [
   "HODL",
   "Cryptocurency",
   "GiveawayAlert",
-  "cz_binance",
+  "cz_binance"
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -76,6 +86,31 @@ async function _fetchPeriodTopEntities() {
   return success(await fs.readJson(PERIOD_TOP_ENTITIES_PATH));
 }
 
+async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) {
+  const sinceId = event.pathParameters.sinceId;
+  const filter = event.pathParameters.filter;
+  const response: RecentResults = await getRecentTweets(bearerToken, 10, null, filter, sinceId);
+  const statuses = filterStatusesForBots(response.statuses);
+
+  const tweetsResponse: TweetsResponse = {
+    sinceId: statuses.length ? statuses[0].id_str : "",
+    tweets: statuses.map((status: Status): TweetResponse => {
+      return {
+        text: status.retweeted_status?.full_text || status.full_text,
+        user: {
+          displayName: status.retweeted_status?.user.name || status.user.name,
+          name: status.retweeted_status?.user.screen_name || status.user.screen_name,
+          followers: status.retweeted_status?.user.followers_count || status.user.followers_count,
+          following: status.retweeted_status?.user.friends_count || status.user.friends_count,
+          profileImage: status.retweeted_status?.user.profile_image_url_https || status.user.profile_image_url_https
+        }
+      };
+    })
+  };
+
+  return success(tweetsResponse);
+}
+
 // ############ WRITERS #############
 
 const _cleanDB = async (event: any, context: any) => {
@@ -95,7 +130,7 @@ const _cleanDB = async (event: any, context: any) => {
     db.prepare("DELETE FROM tweets").run();
   }
 
-  return success('OK');
+  return success("OK");
 };
 
 const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
@@ -105,19 +140,19 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
 
   for (let _runs = 0; _runs < runs; _runs++) {
     console.log(`---- Loop number ${_runs} ----`);
-    const response: RecentResults = await getRecentTweets(bearerToken, maxId);
+
+    const response: RecentResults = await getRecentTweets(
+      bearerToken,
+      100,
+      maxId,
+      "(#defi OR #crypto OR #cryptocurrency)"
+    );
 
     // Max id to page to the next result
     maxId = extractMaxId(response.search_metadata.next_results);
 
     // Filtering bots
-    const statuses = response.statuses.filter((status: Status) => {
-      return (
-        new Date(status.user.created_at).getTime() < new Date().getTime() - MONTH &&
-        status.user.followers_count > 0 &&
-        !status.user.default_profile_image
-      );
-    });
+    const statuses = filterStatusesForBots(response.statuses);
 
     // Keep for debugging1
     // if (statuses.length !== response.statuses.length) {
@@ -165,6 +200,16 @@ const _cleanAndSavePeriodTopEntities = async () => {
 };
 
 // ############ INTERNALS #############
+
+function filterStatusesForBots(statuses: Array<Status>): Array<Status> {
+  return statuses.filter((status: Status) => {
+    return (
+      new Date(status.user.created_at).getTime() < new Date().getTime() - MONTH &&
+      status.user.followers_count > 0 &&
+      !status.user.default_profile_image
+    );
+  });
+}
 
 async function _writePeriodTopEntities() {
   const yesterdayTopEntities = await savePeriodTopEntities();
@@ -215,7 +260,7 @@ const updateEntities = async (statuses: Array<Status>) => {
       hashtags: [],
       symbols: [],
       urls: [],
-      user_mentions: [],
+      user_mentions: []
     };
 
     if (status.quoted_status) {
@@ -238,7 +283,7 @@ const updateEntities = async (statuses: Array<Status>) => {
         entitiesToSave.push({
           type: EntityType.CASHHASH,
           name: cashtag,
-          count: 1,
+          count: 1
         });
       }
     });
@@ -252,7 +297,7 @@ const updateEntities = async (statuses: Array<Status>) => {
         entitiesToSave.push({
           type: EntityType.HASHTAG,
           name: hashtag,
-          count: 1,
+          count: 1
         });
       }
     });
@@ -267,7 +312,7 @@ const updateEntities = async (statuses: Array<Status>) => {
           type: EntityType.MENTION,
           name: mention,
           extra: name,
-          count: 1,
+          count: 1
         });
       }
     });
@@ -284,7 +329,7 @@ const updateEntities = async (statuses: Array<Status>) => {
             type: EntityType.URL,
             name: url,
             extra: expanded_url,
-            count: 1,
+            count: 1
           });
         }
       });
@@ -292,7 +337,7 @@ const updateEntities = async (statuses: Array<Status>) => {
 
   const entitiesStatement = db.prepare(
     "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
-      "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
+    "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
   db.transaction((entities: Array<Entity>) => {
@@ -323,7 +368,7 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
     hashtags,
     cashtags,
     mentions,
-    urls,
+    urls
   };
 };
 
@@ -335,7 +380,7 @@ const savePeriodTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL),
+    db.prepare(preparedStatement).get(EntityType.URL)
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,extra,date) values (?,?,?,?,date())");
@@ -357,7 +402,7 @@ const fetchWeeklyTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL),
+    db.prepare(preparedStatement).get(EntityType.URL)
   ];
 
   return weeklyTopEntities;
@@ -366,7 +411,7 @@ const fetchWeeklyTopEntities = async () => {
 const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, weeklyTopEntities: Array<TopEntity>) => {
   await fs.writeJson(PERIOD_TOP_ENTITIES_PATH, {
     yesterdayTopEntities,
-    weeklyTopEntities,
+    weeklyTopEntities
   });
 };
 
@@ -381,9 +426,9 @@ function success(result: any) {
   return {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": "*"
     },
-    body: JSON.stringify(result),
+    body: JSON.stringify(result)
   };
 }
 
@@ -400,7 +445,7 @@ async function catchErrors(this: any, event: any, context: any) {
     console.error(message);
     return {
       statusCode: 500,
-      body: message,
+      body: message
     };
   }
 }
@@ -416,7 +461,7 @@ async function authorize(this: any, event: any, context: any) {
   } else {
     return {
       statusCode: 401,
-      body: "Unauthorized",
+      body: "Unauthorized"
     };
   }
 }
@@ -426,3 +471,4 @@ export const reader_fetchPeriodTopEntities = catchErrors.bind(beforeRunningFunc.
 export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_saveTopEntities.bind(null, SECRETS.BEARER_TOKEN)));
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities));
 export const writer_cleanDB = authorize.bind(catchErrors.bind(beforeRunningFunc.bind(_cleanDB)));
+export const reader_fetchTweetsByTag = catchErrors.bind(beforeRunningFunc.bind(_fetchTweetsByTag.bind(null, SECRETS.TWEETS_BY_TAG_BEARER_TOKEN)));
