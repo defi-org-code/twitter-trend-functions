@@ -55,7 +55,12 @@ const EXCLUDED_ENTITIES = [
   "HODL",
   "Cryptocurency",
   "GiveawayAlert",
-  "cz_binance"
+  "cz_binance",
+  "ICOAnnouncement",
+  "china",
+  "Airdropinspector",
+  "cryptoairdrop",
+  "cryptotrading",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -146,13 +151,6 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
     currentRun = previousResult.currentRun;
   }
 
-  console.log("maxId", maxId);
-  console.log("currentRun", currentRun);
-
-  //for (let _runs = 0; _runs < runs; _runs++) {
-  //console.log(`---- Loop number ${_runs} ----`);
-  console.log(`---- Loop number ${new Date()} ----`);
-
   const response: RecentResults = await getRecentTweets(
     bearerToken,
     100,
@@ -197,11 +195,6 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
 
   console.log("---- Writing result ----");
   await writeTopEntitiesToDisk();
-
-  //  await sleep(3000);
-  //}
-
-  console.log("currentRun < runs", currentRun < runs);
 
   return success(
     {
