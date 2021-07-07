@@ -22,22 +22,27 @@ stepFunctions:
       events:
         - schedule: rate(1 minute) # examples: rate(1 minute), rate(60 minutes)
       definition:
-        StartAt: FirstState
+        StartAt: Iterator
         States:
-          FirstState:
+          Iterator:
             Type: Task
             Resource:
               Fn::GetAtt: [writer_saveTopEntities, Arn]
             ResultPath: "$.taskresult"
-            Next: wait
+            Next: IsCountReached
+          IsCountReached:
+            Type: Choice
+            Choices:
+              - Variable: "$.taskresult.continue"
+                BooleanEquals: true
+                Next: Wait
+            Default: Done
           wait:
             Type: Wait
-            Seconds: 10
-            Next: FinalState
-          FinalState:
-            Type: Task
-            Resource:
-              Fn::GetAtt: [writer_saveTopEntities, Arn]
+            Seconds: 3
+            Next: Iterator
+          Done:
+            Type: Pass
             End: true
 
 functions:

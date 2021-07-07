@@ -136,10 +136,18 @@ const _cleanDB = async (event: any, context: any) => {
 
 const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
   console.log("---- Fetching recent tweets ----");
-  console.log("event", event);
-  console.log("event - taskresult", event['taskresult']);
 
   let maxId: string | null = null;
+  let currentRun: number = 0;
+
+  if (event['taskresult']) {
+    const previousResult = JSON.parse(event['taskresult'].body);
+    maxId = previousResult.maxId;
+    currentRun = previousResult.currentRun;
+  }
+
+  console.log("maxId", maxId);
+  console.log("currentRun", currentRun);
 
   //for (let _runs = 0; _runs < runs; _runs++) {
     //console.log(`---- Loop number ${_runs} ----`);
@@ -194,7 +202,9 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   //}
 
   return success({
-    maxId
+    maxId,
+    currentRun: currentRun + 1,
+    continue: currentRun < runs
   });
 };
 
