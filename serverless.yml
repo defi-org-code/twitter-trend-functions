@@ -41,6 +41,14 @@ functions:
           path: fetchPeriodTopEntities
           method: get
           cors: true
+  reader_fetchTweetsByTag:
+    handler: dist/index.reader_fetchTweetsByTag
+    fileSystemConfig: ${file(./serverless-fs.yml)}
+    events:
+      - http:
+          path: fetchTweetsByTag/{filter}/{sinceId}
+          method: get
+          cors: true
   writer_cleanDB:
     handler: dist/index.writer_cleanDB
     fileSystemConfig: ${file(./serverless-fs.yml)}
