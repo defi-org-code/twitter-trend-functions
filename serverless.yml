@@ -46,7 +46,11 @@ functions:
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
       - http:
-          path: fetchTweetsByTag/{filter}/{sinceId?}
+          path: fetchTweetsByTag/{filter}/{sinceId}
+          method: get
+          cors: true
+      - http:
+          path: fetchTweetsByTag/{filter}
           method: get
           cors: true
   writer_cleanDB:
