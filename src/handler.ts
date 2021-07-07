@@ -89,8 +89,13 @@ async function _fetchPeriodTopEntities() {
 async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) {
   const sinceId = event.pathParameters.sinceId;
   const filter = event.pathParameters.filter;
+  console.log('sinceId', sinceId);
+  console.log('filter', sinceId);
   const response: RecentResults = await getRecentTweets(bearerToken, 10, null, filter, sinceId);
+  console.log('response.statuses', response.statuses !== null);
+  console.log('response.statuses.length', response.statuses ? response.statuses.length : 0);
   const statuses = filterStatusesForBots(response.statuses);
+  console.log('statuses.length', statuses ? statuses.length : 0);
 
   const tweetsResponse: TweetsResponse = {
     sinceId: statuses.length ? statuses[0].id_str : "",
