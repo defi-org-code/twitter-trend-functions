@@ -89,11 +89,14 @@ const _cleanDB = async (event: any, context: any) => {
     db.prepare("DELETE FROM tweets").run();
   } else if (param === "top") {
     db.prepare("DELETE FROM top_entities").run();
+    await _writePeriodTopEntities();
   } else if (param === "entities") {
     db.prepare("DELETE FROM entities").run();
   } else if (param === "tweets") {
     db.prepare("DELETE FROM tweets").run();
   }
+
+  return success('OK');
 };
 
 const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
@@ -157,15 +160,19 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
 
 const _cleanAndSavePeriodTopEntities = async () => {
   console.log("---- Save Period Top Entities ----");
-  const yesterdayTopEntities = await savePeriodTopEntities();
-  const weeklyTopEntities = await fetchWeeklyTopEntities();
-  console.log("---- Write Period Top Entities ----");
-  await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
+  await _writePeriodTopEntities();
   console.log("---- Truncating entities ----");
   await truncateData();
 };
 
 // ############ INTERNALS #############
+
+async function _writePeriodTopEntities() {
+  const yesterdayTopEntities = await savePeriodTopEntities();
+  const weeklyTopEntities = await fetchWeeklyTopEntities();
+  console.log("---- Write Period Top Entities ----");
+  await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
+}
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
