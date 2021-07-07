@@ -202,13 +202,18 @@ const _cleanAndSavePeriodTopEntities = async () => {
 // ############ INTERNALS #############
 
 function filterStatusesForBots(statuses: Array<Status>): Array<Status> {
-  return statuses.filter((status: Status) => {
-    return (
-      new Date(status.user.created_at).getTime() < new Date().getTime() - MONTH &&
-      status.user.followers_count > 0 &&
-      !status.user.default_profile_image
-    );
-  });
+
+  if (statuses) {
+    return statuses.filter((status: Status) => {
+      return (
+        new Date(status.user.created_at).getTime() < new Date().getTime() - MONTH &&
+        status.user.followers_count > 0 &&
+        !status.user.default_profile_image
+      );
+    });
+  }
+
+  return [];
 }
 
 async function _writePeriodTopEntities() {

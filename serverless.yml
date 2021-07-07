@@ -49,6 +49,10 @@ functions:
           path: fetchTweetsByTag/{filter}/{sinceId}
           method: get
           cors: true
+          request:
+            parameter:
+              filter: true
+              sinceId: false
   writer_cleanDB:
     handler: dist/index.writer_cleanDB
     fileSystemConfig: ${file(./serverless-fs.yml)}
