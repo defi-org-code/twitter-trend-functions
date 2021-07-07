@@ -140,8 +140,8 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   let maxId: string | null = null;
   let currentRun: number = 0;
 
-  if (event['taskresult']) {
-    const previousResult = JSON.parse(event['taskresult'].body);
+  if (event["taskresult"]) {
+    const previousResult = JSON.parse(event["taskresult"].body);
     maxId = previousResult.maxId;
     currentRun = previousResult.currentRun;
   }
@@ -150,62 +150,63 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   console.log("currentRun", currentRun);
 
   //for (let _runs = 0; _runs < runs; _runs++) {
-    //console.log(`---- Loop number ${_runs} ----`);
-    console.log(`---- Loop number ${new Date()} ----`);
+  //console.log(`---- Loop number ${_runs} ----`);
+  console.log(`---- Loop number ${new Date()} ----`);
 
-    const response: RecentResults = await getRecentTweets(
-      bearerToken,
-      100,
-      maxId,
-      "(#defi OR #crypto OR #cryptocurrency)"
-    );
+  const response: RecentResults = await getRecentTweets(
+    bearerToken,
+    100,
+    maxId,
+    "(#defi OR #crypto OR #cryptocurrency)"
+  );
 
-    // Max id to page to the next result
-    maxId = extractMaxId(response.search_metadata.next_results);
+  // Max id to page to the next result
+  maxId = extractMaxId(response.search_metadata.next_results);
 
-    // Filtering bots
-    const statuses = filterStatusesForBots(response.statuses);
+  // Filtering bots
+  const statuses = filterStatusesForBots(response.statuses);
 
-    // Keep for debugging1
-    // if (statuses.length !== response.statuses.length) {
-    //   console.log("Amount of statuses filtered", response.statuses.length - statuses.length);
-    //   response.statuses
-    //     .filter((status: Status) => statuses.some((s: Status) => status.id_str === s.id_str))
-    //     .forEach((status: Status) => {
-    //       if (new Date(status.user.created_at).getTime() > new Date().getTime() - MONTH) {
-    //         console.log("---- User is not month old ----", new Date(status.user.created_at));
-    //       }
-    //       if (status.user.followers_count > 0) {
-    //         console.log("---- User does not have any followers ----");
-    //       }
-    //       if (!status.user.default_profile_image) {
-    //         console.log("---- User has a default profile image ----");
-    //       }
-    //     });
-    // } else {
-    //   console.log("---- No users were filtered ----");
-    // }
+  // Keep for debugging1
+  // if (statuses.length !== response.statuses.length) {
+  //   console.log("Amount of statuses filtered", response.statuses.length - statuses.length);
+  //   response.statuses
+  //     .filter((status: Status) => statuses.some((s: Status) => status.id_str === s.id_str))
+  //     .forEach((status: Status) => {
+  //       if (new Date(status.user.created_at).getTime() > new Date().getTime() - MONTH) {
+  //         console.log("---- User is not month old ----", new Date(status.user.created_at));
+  //       }
+  //       if (status.user.followers_count > 0) {
+  //         console.log("---- User does not have any followers ----");
+  //       }
+  //       if (!status.user.default_profile_image) {
+  //         console.log("---- User has a default profile image ----");
+  //       }
+  //     });
+  // } else {
+  //   console.log("---- No users were filtered ----");
+  // }
 
-    console.log("---- Inserting tweets ----");
-    await updateTweets(statuses);
+  console.log("---- Inserting tweets ----");
+  await updateTweets(statuses);
 
-    console.log("---- Processing entities ----");
-    await setProcessedEntities();
+  console.log("---- Processing entities ----");
+  await setProcessedEntities();
 
-    console.log("---- Update entities ----");
-    await updateEntities(statuses);
+  console.log("---- Update entities ----");
+  await updateEntities(statuses);
 
-    console.log("---- Writing result ----");
-    await writeTopEntitiesToDisk();
+  console.log("---- Writing result ----");
+  await writeTopEntitiesToDisk();
 
   //  await sleep(3000);
   //}
 
-  return success({
-    maxId,
-    currentRun: currentRun + 1,
-    continue: currentRun < runs
-  });
+  return success(
+    {
+      maxId,
+      currentRun: currentRun + 1
+    },
+    currentRun < runs);
 };
 
 const _cleanAndSavePeriodTopEntities = async () => {
@@ -443,14 +444,20 @@ const truncateData = async () => {
 
 // ############ WRAPPERS #############
 
-function success(result: any) {
-  return {
+function success(result: any, _continue?: boolean) {
+  const response:any = {
     statusCode: 200,
     headers: {
       "Access-Control-Allow-Origin": "*"
     },
     body: JSON.stringify(result)
   };
+
+  if (_continue !== undefined) {
+    response.continue = _continue;
+  }
+
+  return response;
 }
 
 async function beforeRunningFunc(this: any, event: any, context: any) {
