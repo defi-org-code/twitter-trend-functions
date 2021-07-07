@@ -44,6 +44,7 @@ const EXCLUDED_ENTITIES = [
   "HODL",
   "Cryptocurency",
   "GiveawayAlert",
+  "cz_binance",
 ]
   .map((e) => `'${e}'`)
   .join(",");
