@@ -29,15 +29,15 @@ stepFunctions:
             Resource:
               Fn::GetAtt: [writer_saveTopEntities, Arn]
             Next: wait
-            wait:
-              Type: Wait
-              Seconds: 10
-              Next: FinalState
-            FinalState:
-              Type: Task
-              Resource:
-                Fn::GetAtt: [writer_saveTopEntities, Arn]
-              End: true
+          wait:
+            Type: Wait
+            Seconds: 10
+            Next: FinalState
+          FinalState:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [writer_saveTopEntities, Arn]
+            End: true
 
 functions:
   writer_saveTopEntities:
