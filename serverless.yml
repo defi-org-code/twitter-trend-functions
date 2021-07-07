@@ -5,6 +5,10 @@ custom:
 
 provider: ${file(./serverless-provider.yml)}
 
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+
 package:
   patterns:
     - '!*'
@@ -12,13 +16,33 @@ package:
     - 'dist/*'
     - 'dist/*/**'
 
+stepFunctions:
+  stateMachines:
+    iteratble_writer_saveTopEntities:
+      events:
+        - schedule: rate(1 minute) # examples: rate(1 minute), rate(60 minutes)
+      definition:
+        StartAt: FirstState
+          States:
+            FirstState:
+              Type: Task
+              Resource:
+                Fn::GetAtt: [writer_saveTopEntities, Arn]
+              Next: wait
+              wait:
+                Type: Wait
+                Seconds: 10
+                Next: FinalState
+              FinalState:
+                Type: Task
+                Resource:
+                  Fn::GetAtt: [writer_saveTopEntities, Arn]
+                End: true
+
 functions:
   writer_saveTopEntities:
     handler: dist/index.writer_saveTopEntities
-    timeout: 60
     fileSystemConfig: ${file(./serverless-fs.yml)}
-    events:
-      - schedule: rate(1 minute) # examples: rate(1 minute), rate(60 minutes)
   writer_cleanAndSavePeriodTopEntities:
     handler: dist/index.writer_cleanAndSavePeriodTopEntities
     timeout: 60

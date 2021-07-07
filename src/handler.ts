@@ -89,7 +89,7 @@ async function _fetchPeriodTopEntities() {
 async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) {
   const sinceId = event.pathParameters.sinceId;
   const filter = event.pathParameters.filter;
-  
+
   const response: RecentResults = await getRecentTweets(bearerToken, 10, null, filter, sinceId);
   const statuses = filterStatusesForBots(response.statuses);
 
@@ -139,8 +139,9 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
 
   let maxId: string | null = null;
 
-  for (let _runs = 0; _runs < runs; _runs++) {
-    console.log(`---- Loop number ${_runs} ----`);
+  //for (let _runs = 0; _runs < runs; _runs++) {
+    //console.log(`---- Loop number ${_runs} ----`);
+    console.log(`---- Loop number ${new Date()} ----`);
 
     const response: RecentResults = await getRecentTweets(
       bearerToken,
@@ -187,8 +188,8 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
     console.log("---- Writing result ----");
     await writeTopEntitiesToDisk();
 
-    await sleep(3000);
-  }
+  //  await sleep(3000);
+  //}
 
   return success("OK");
 };
