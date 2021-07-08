@@ -1,5 +1,5 @@
 import path from "path";
-import { getRecentTweets } from "./twitter-api";
+import { getRecentTweets, getRecentTweetsOfList } from "./twitter-api";
 import {
   Entities,
   EntitiesResult,
@@ -10,6 +10,7 @@ import {
   TopEntity,
   TweetResponse,
   TweetsResponse,
+  UserResponse,
 } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
@@ -17,6 +18,9 @@ import { createHash } from "crypto";
 
 const SECRETS = process.env.REPO_SECRETS_JSON ? JSON.parse(process.env.REPO_SECRETS_JSON) : {};
 const TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "top-entities.json");
+const TOP_ENTITIES_OF_LIST_PATH = path.resolve(process.env.HOME_DIR!!, "top-entities-of-list-$LIST_ID.json");
+const ACTIVE_USERS_PATH = path.resolve(process.env.HOME_DIR!!, "active-users-$LIST_ID.json");
+const PERIOD_TOP_ENTITIES_OF_LIST_PATH = path.resolve(process.env.HOME_DIR!!, "period-top-entities-$LIST_ID.json");
 const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-top-entities.json");
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 const MONTH = 30 * 24 * 60 * 60 * 1000;
@@ -72,11 +76,10 @@ const EXCLUDED_ENTITIES = [
 
 let db: Database;
 
-const ensureDBIsReady = () => {
+const ensureDBIsReady = (dbSuffix: string = "") => {
   if (!db) {
-    db = sqlite3(DB_PATH);
+    db = sqlite3(DB_PATH.replace(".db", `_${dbSuffix}.db`));
 
-    db.exec("CREATE TABLE IF NOT EXISTS users_lists (list_id INTEGER, user TEXT, PRIMARY KEY(list_id,user))");
     db.exec("CREATE TABLE IF NOT EXISTS tweets (id TEXT PRIMARY KEY)");
     db.exec(
       "CREATE TABLE IF NOT EXISTS entities (name TEXT, type INTEGER, count INTEGER, processed INTEGER, lastUpdateTime TEXT, extra TEXT, PRIMARY KEY (name, type))"
@@ -93,8 +96,23 @@ async function _fetchTopEntities() {
   return success(await fs.readJson(TOP_ENTITIES_PATH));
 }
 
+async function _fetchTopEntitiesOfList(event: any) {
+  const listId = event.pathParameters.listId;
+  return success(await fs.readJson(TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId)));
+}
+
+async function _fetchActiveUsersOfList(event: any) {
+  const listId = event.pathParameters.listId;
+  return success(await fs.readJson(ACTIVE_USERS_PATH.replace("$LIST_ID", listId)));
+}
+
 async function _fetchPeriodTopEntities() {
   return success(await fs.readJson(PERIOD_TOP_ENTITIES_PATH));
+}
+
+async function _fetchPeriodTopEntitiesOfList(event: any) {
+  const listId = event.pathParameters.listId;
+  return success(await fs.readJson(PERIOD_TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId)));
 }
 
 async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) {
@@ -125,30 +143,6 @@ async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) 
 
 // ############ WRITERS #############
 
-const _manageUsersLists = async (event: any, context: any) => {
-  const param = event.pathParameters.param;
-  const list = parseInt(event.pathParameters.list);
-  const users = event.pathParameters.users.split(",");
-
-  if (param === "add") {
-    const statement = db.prepare("insert into users_lists values (?,?)");
-
-    db.transaction((users: Array<string>) => {
-      users.forEach((user: string) => {
-        statement.run(list, user);
-      });
-    })(users);
-  } else if (param === "delete") {
-    const statement = db.prepare("delete from users_lists where list_id = ? and user = ?");
-
-    db.transaction((users: Array<string>) => {
-      users.forEach((user: string) => {
-        statement.run(list, user);
-      });
-    })(users);
-  }
-};
-
 const _cleanDB = async (event: any, context: any) => {
   console.log("---- Cleaning DB ----");
 
@@ -165,16 +159,34 @@ const _cleanDB = async (event: any, context: any) => {
     db.prepare("DELETE FROM entities").run();
   } else if (param === "tweets") {
     db.prepare("DELETE FROM tweets").run();
-  } else if (param === "users") {
-    db.prepare("DELETE FROM users_lists").run();
   }
 
   return success("OK");
 };
 
-const _saveTopEntities = async (bearerToken: string, event: any, context: any, runs: number = 14) => {
-  console.log("---- Fetching recent tweets ----");
+const _saveTopEntitiesByList = async (bearerToken: string, maxId: string | null, event: any) => {
+  console.log("---- Fetching recent tweets by verified users ----");
+  const listId = event.pathParameters.listId;
 
+  const response: RecentResults = await getRecentTweetsOfList(bearerToken, 200, listId, maxId);
+
+  return response;
+};
+
+const _saveTopEntitiesByAll = async (bearerToken: string, maxId: string | null, event: any) => {
+  console.log("---- Fetching recent tweets by all ----");
+
+  const response: RecentResults = await getRecentTweets(
+    bearerToken,
+    100,
+    maxId,
+    "(#defi OR #crypto OR #cryptocurrency)"
+  );
+
+  return response;
+};
+
+async function _saveTopEntities(this: any, bearerToken: string, writer: any, runs: number, event: any, context: any) {
   let maxId: string | null = null;
   let currentRun: number = 0;
 
@@ -184,20 +196,17 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
     currentRun = previousResult.currentRun;
   }
 
-  const response: RecentResults = await getRecentTweets(
-    bearerToken,
-    100,
-    maxId,
-    "(#defi OR #crypto OR #cryptocurrency)"
-  );
+  console.log("Running save top entities run number", currentRun);
+
+  const response: RecentResults = await this(bearerToken, maxId, event);
 
   // Max id to page to the next result
-  maxId = extractMaxId(response.search_metadata.next_results);
+  maxId = response.search_metadata.next_results ? extractMaxId(response.search_metadata.next_results) : null;
 
   // Filtering bots
   const statuses = filterStatusesForBots(response.statuses);
 
-  // Keep for debugging1
+  // Keep for debugging
   // if (statuses.length !== response.statuses.length) {
   //   console.log("Amount of statuses filtered", response.statuses.length - statuses.length);
   //   response.statuses
@@ -227,20 +236,31 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   await updateEntities(statuses);
 
   console.log("---- Writing result ----");
-  await writeTopEntitiesToDisk();
+  await writer(statuses, event);
+
+  const _continue = currentRun < runs && !!maxId;
+  console.log("Finish save top entities run number", currentRun, "continue", _continue);
 
   return success(
     {
       maxId,
       currentRun: currentRun + 1,
     },
-    currentRun < runs
+    _continue
   );
-};
+}
 
 const _cleanAndSavePeriodTopEntities = async () => {
   console.log("---- Save Period Top Entities ----");
-  await _writePeriodTopEntities();
+  await _writePeriodTopEntities(PERIOD_TOP_ENTITIES_PATH);
+  console.log("---- Truncating entities ----");
+  await truncateData();
+};
+
+const _cleanAndSavePeriodTopEntitiesOfList = async (event: any) => {
+  console.log("---- Save Period Top Entities Of List ----");
+  const listId = event.pathParameters.listId;
+  await _writePeriodTopEntities(PERIOD_TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId));
   console.log("---- Truncating entities ----");
   await truncateData();
 };
@@ -261,15 +281,11 @@ function filterStatusesForBots(statuses: Array<Status>): Array<Status> {
   return [];
 }
 
-async function _writePeriodTopEntities() {
+async function _writePeriodTopEntities(path: string) {
   const yesterdayTopEntities = await savePeriodTopEntities();
   const weeklyTopEntities = await fetchWeeklyTopEntities();
   console.log("---- Write Period Top Entities ----");
-  await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities);
-}
-
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities, path);
 }
 
 const extractMaxId = (next_results: string) => {
@@ -399,10 +415,35 @@ const updateEntities = async (statuses: Array<Status>) => {
   console.log("done updateEntities");
 };
 
-const writeTopEntitiesToDisk = async () => {
-  const topEntities = await fetchTopEntities(30);
+const writeUserListItemsToDisk = async (statuses: Array<Status>, event: any) => {
+  await writeActiveUsersToDisk(statuses, event);
+  const listId = event.pathParameters.listId;
+  await writeTopEntitiesToDisk(TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId));
+};
 
-  await fs.writeJson(TOP_ENTITIES_PATH, topEntities);
+const writeActiveUsersToDisk = async (statuses: Array<Status>, event: any) => {
+  const listId = event.pathParameters.listId;
+  const hourAgo = new Date();
+  hourAgo.setTime(hourAgo.getTime() - 60 * 60 * 1000);
+
+  const users: Array<UserResponse> = statuses
+    .filter((status) => new Date(status.created_at) > hourAgo)
+    .map((status: Status) => {
+      return {
+        displayName: status.user.name,
+        name: status.user.name,
+        following: status.user.friends_count,
+        followers: status.user.followers_count,
+        profileImage: status.user.profile_image_url_https,
+      };
+    });
+
+  await fs.writeJson(ACTIVE_USERS_PATH.replace("$LIST_ID", listId), users);
+};
+
+const writeTopEntitiesToDisk = async (path: string) => {
+  const topEntities = await fetchTopEntities(30);
+  await fs.writeJson(path, topEntities);
 };
 
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
@@ -458,8 +499,12 @@ const fetchWeeklyTopEntities = async () => {
   return weeklyTopEntities;
 };
 
-const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, weeklyTopEntities: Array<TopEntity>) => {
-  await fs.writeJson(PERIOD_TOP_ENTITIES_PATH, {
+const writePeriodTopEntities = async (
+  yesterdayTopEntities: Array<TopEntity>,
+  weeklyTopEntities: Array<TopEntity>,
+  path: string
+) => {
+  await fs.writeJson(path, {
     yesterdayTopEntities,
     weeklyTopEntities,
   });
@@ -489,7 +534,11 @@ function success(result: any, _continue?: boolean) {
 }
 
 async function beforeRunningFunc(this: any, event: any, context: any) {
-  ensureDBIsReady();
+  const listId = event.pathParameters.listId;
+  if (listId !== "1413118800363458560") {
+    return success("Currently only 1413118800363458560 list is supported");
+  }
+  ensureDBIsReady(listId);
   return await this(event, context);
 }
 
@@ -523,9 +572,35 @@ async function authorize(this: any, event: any, context: any) {
 }
 
 export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntities));
+export const reader_fetchActiveUsersOfList = catchErrors.bind(beforeRunningFunc.bind(_fetchActiveUsersOfList));
+export const reader_fetchTopEntitiesOfList = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntitiesOfList));
 export const reader_fetchPeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchPeriodTopEntities));
-export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_saveTopEntities.bind(null, SECRETS.BEARER_TOKEN)));
-export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities));
+export const reader_fetchPeriodTopEntitiesOfList = catchErrors.bind(
+  beforeRunningFunc.bind(_fetchPeriodTopEntitiesOfList)
+);
+export const reader_fetchTweetsByTag = catchErrors.bind(
+  beforeRunningFunc.bind(_fetchTweetsByTag.bind(null, SECRETS.TWEETS_BY_TAG_BEARER_TOKEN))
+);
+
+export const writer_saveTopEntitiesByAll = catchErrors.bind(
+  beforeRunningFunc.bind(
+    _saveTopEntities.bind(
+      _saveTopEntitiesByAll,
+      SECRETS.BEARER_TOKEN,
+      writeTopEntitiesToDisk.bind(null, TOP_ENTITIES_PATH),
+      15
+    )
+  )
+);
+export const writer_saveTopEntitiesByList = catchErrors.bind(
+  beforeRunningFunc.bind(
+    _saveTopEntities.bind(_saveTopEntitiesByList, SECRETS.USERS_BEARER_TOKEN, writeUserListItemsToDisk, 5)
+  )
+);
+export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(
+  beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities)
+);
+export const writer_cleanAndSavePeriodTopEntitiesOfList = catchErrors.bind(
+  beforeRunningFunc.bind(_cleanAndSavePeriodTopEntitiesOfList)
+);
 export const writer_cleanDB = catchErrors.bind(authorize.bind(beforeRunningFunc.bind(_cleanDB)));
-export const writer_manageUsersLists = catchErrors.bind(authorize.bind(beforeRunningFunc.bind(_manageUsersLists)));
-export const reader_fetchTweetsByTag = catchErrors.bind(beforeRunningFunc.bind(_fetchTweetsByTag.bind(null, SECRETS.TWEETS_BY_TAG_BEARER_TOKEN)));

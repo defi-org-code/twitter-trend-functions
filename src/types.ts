@@ -46,6 +46,7 @@ export type TweetsResponse = {
 };
 
 export type Status = {
+  created_at: string;
   full_text: string;
   id_str: string;
   entities: Entities;
@@ -59,7 +60,7 @@ export type Status = {
 export type RecentResults = {
   statuses: Array<Status>;
   search_metadata: {
-    next_results: string;
+    next_results: string | null;
   };
 };
 
