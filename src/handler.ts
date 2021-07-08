@@ -9,7 +9,7 @@ import {
   Status,
   TopEntity,
   TweetResponse,
-  TweetsResponse
+  TweetsResponse,
 } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
@@ -61,6 +61,11 @@ const EXCLUDED_ENTITIES = [
   "Airdropinspector",
   "cryptoairdrop",
   "cryptotrading",
+  "presale",
+  "100xCoin",
+  "dapp",
+  "yield",
+  "CoinMarketCap",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -71,6 +76,7 @@ const ensureDBIsReady = () => {
   if (!db) {
     db = sqlite3(DB_PATH);
 
+    db.exec("CREATE TABLE IF NOT EXISTS users_lists (list_id INTEGER, user TEXT, PRIMARY KEY(list_id,user))");
     db.exec("CREATE TABLE IF NOT EXISTS tweets (id TEXT PRIMARY KEY)");
     db.exec(
       "CREATE TABLE IF NOT EXISTS entities (name TEXT, type INTEGER, count INTEGER, processed INTEGER, lastUpdateTime TEXT, extra TEXT, PRIMARY KEY (name, type))"
@@ -108,16 +114,40 @@ async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) 
           name: status.retweeted_status?.user.screen_name || status.user.screen_name,
           followers: status.retweeted_status?.user.followers_count || status.user.followers_count,
           following: status.retweeted_status?.user.friends_count || status.user.friends_count,
-          profileImage: status.retweeted_status?.user.profile_image_url_https || status.user.profile_image_url_https
-        }
+          profileImage: status.retweeted_status?.user.profile_image_url_https || status.user.profile_image_url_https,
+        },
       };
-    })
+    }),
   };
 
   return success(tweetsResponse);
 }
 
 // ############ WRITERS #############
+
+const _manageUsersLists = async (event: any, context: any) => {
+  const param = event.pathParameters.param;
+  const list = parseInt(event.pathParameters.list);
+  const users = event.pathParameters.users.split(",");
+
+  if (param === "add") {
+    const statement = db.prepare("insert into users_lists values (?,?)");
+
+    db.transaction((users: Array<string>) => {
+      users.forEach((user: string) => {
+        statement.run(list, user);
+      });
+    })(users);
+  } else if (param === "delete") {
+    const statement = db.prepare("delete from users_lists where list_id = ? and user = ?");
+
+    db.transaction((users: Array<string>) => {
+      users.forEach((user: string) => {
+        statement.run(list, user);
+      });
+    })(users);
+  }
+};
 
 const _cleanDB = async (event: any, context: any) => {
   console.log("---- Cleaning DB ----");
@@ -128,12 +158,15 @@ const _cleanDB = async (event: any, context: any) => {
     db.prepare("DELETE FROM top_entities").run();
     db.prepare("DELETE FROM entities").run();
     db.prepare("DELETE FROM tweets").run();
+    db.prepare("DELETE FROM users_lists").run();
   } else if (param === "top") {
     db.prepare("DELETE FROM top_entities").run();
   } else if (param === "entities") {
     db.prepare("DELETE FROM entities").run();
   } else if (param === "tweets") {
     db.prepare("DELETE FROM tweets").run();
+  } else if (param === "users") {
+    db.prepare("DELETE FROM users_lists").run();
   }
 
   return success("OK");
@@ -199,9 +232,10 @@ const _saveTopEntities = async (bearerToken: string, event: any, context: any, r
   return success(
     {
       maxId,
-      currentRun: currentRun + 1
+      currentRun: currentRun + 1,
     },
-    currentRun < runs);
+    currentRun < runs
+  );
 };
 
 const _cleanAndSavePeriodTopEntities = async () => {
@@ -214,7 +248,6 @@ const _cleanAndSavePeriodTopEntities = async () => {
 // ############ INTERNALS #############
 
 function filterStatusesForBots(statuses: Array<Status>): Array<Status> {
-
   if (statuses) {
     return statuses.filter((status: Status) => {
       return (
@@ -277,7 +310,7 @@ const updateEntities = async (statuses: Array<Status>) => {
       hashtags: [],
       symbols: [],
       urls: [],
-      user_mentions: []
+      user_mentions: [],
     };
 
     if (status.quoted_status) {
@@ -300,7 +333,7 @@ const updateEntities = async (statuses: Array<Status>) => {
         entitiesToSave.push({
           type: EntityType.CASHHASH,
           name: cashtag,
-          count: 1
+          count: 1,
         });
       }
     });
@@ -314,7 +347,7 @@ const updateEntities = async (statuses: Array<Status>) => {
         entitiesToSave.push({
           type: EntityType.HASHTAG,
           name: hashtag,
-          count: 1
+          count: 1,
         });
       }
     });
@@ -329,7 +362,7 @@ const updateEntities = async (statuses: Array<Status>) => {
           type: EntityType.MENTION,
           name: mention,
           extra: name,
-          count: 1
+          count: 1,
         });
       }
     });
@@ -346,7 +379,7 @@ const updateEntities = async (statuses: Array<Status>) => {
             type: EntityType.URL,
             name: url,
             extra: expanded_url,
-            count: 1
+            count: 1,
           });
         }
       });
@@ -354,7 +387,7 @@ const updateEntities = async (statuses: Array<Status>) => {
 
   const entitiesStatement = db.prepare(
     "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
-    "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
+      "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
   db.transaction((entities: Array<Entity>) => {
@@ -385,7 +418,7 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
     hashtags,
     cashtags,
     mentions,
-    urls
+    urls,
   };
 };
 
@@ -397,7 +430,7 @@ const savePeriodTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.URL),
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,extra,date) values (?,?,?,?,date())");
@@ -419,7 +452,7 @@ const fetchWeeklyTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.URL),
   ];
 
   return weeklyTopEntities;
@@ -428,7 +461,7 @@ const fetchWeeklyTopEntities = async () => {
 const writePeriodTopEntities = async (yesterdayTopEntities: Array<TopEntity>, weeklyTopEntities: Array<TopEntity>) => {
   await fs.writeJson(PERIOD_TOP_ENTITIES_PATH, {
     yesterdayTopEntities,
-    weeklyTopEntities
+    weeklyTopEntities,
   });
 };
 
@@ -440,12 +473,12 @@ const truncateData = async () => {
 // ############ WRAPPERS #############
 
 function success(result: any, _continue?: boolean) {
-  const response:any = {
+  const response: any = {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "*",
     },
-    body: JSON.stringify(result)
+    body: JSON.stringify(result),
   };
 
   if (_continue !== undefined) {
@@ -468,7 +501,7 @@ async function catchErrors(this: any, event: any, context: any) {
     console.error(message);
     return {
       statusCode: 500,
-      body: message
+      body: message,
     };
   }
 }
@@ -484,7 +517,7 @@ async function authorize(this: any, event: any, context: any) {
   } else {
     return {
       statusCode: 401,
-      body: "Unauthorized"
+      body: "Unauthorized",
     };
   }
 }
@@ -493,5 +526,6 @@ export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_
 export const reader_fetchPeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchPeriodTopEntities));
 export const writer_saveTopEntities = catchErrors.bind(beforeRunningFunc.bind(_saveTopEntities.bind(null, SECRETS.BEARER_TOKEN)));
 export const writer_cleanAndSavePeriodTopEntities = catchErrors.bind(beforeRunningFunc.bind(_cleanAndSavePeriodTopEntities));
-export const writer_cleanDB = authorize.bind(catchErrors.bind(beforeRunningFunc.bind(_cleanDB)));
+export const writer_cleanDB = catchErrors.bind(authorize.bind(beforeRunningFunc.bind(_cleanDB)));
+export const writer_manageUsersLists = catchErrors.bind(authorize.bind(beforeRunningFunc.bind(_manageUsersLists)));
 export const reader_fetchTweetsByTag = catchErrors.bind(beforeRunningFunc.bind(_fetchTweetsByTag.bind(null, SECRETS.TWEETS_BY_TAG_BEARER_TOKEN)));

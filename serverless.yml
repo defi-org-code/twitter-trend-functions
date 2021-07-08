@@ -91,3 +91,11 @@ functions:
           path: cleanDB/{param}/{secret}
           method: get
           cors: true
+  writer_manageUsersLists:
+    handler: dist/index.writer_manageUsersLists
+    fileSystemConfig: ${file(./serverless-fs.yml)}
+    events:
+      - http:
+          path: manageList/{param}/{list}/{users}/{secret}
+          method: get
+          cors: true
