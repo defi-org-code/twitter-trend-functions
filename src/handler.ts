@@ -70,6 +70,17 @@ const EXCLUDED_ENTITIES = [
   "dapp",
   "yield",
   "CoinMarketCap",
+  "cryptogiveaway",
+  "cryptocrash",
+  "cryptotwitter",
+  "airdropalert",
+  "cryptomoonshots",
+  "altcoins",
+  "CryptoGems",
+  "BSCs",
+  "BSCGem",
+  "gem",
+  "freetokens",
 ]
   .map((e) => `'${e}'`)
   .join(",");
