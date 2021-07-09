@@ -85,7 +85,7 @@ functions:
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
       - schedule: cron(59 23 * * ? *)
-  writer_cleanAndSavePeriodTopEntitiesOfList:
+  writer_cleanAndSavePeriodTopEnOfList:
     handler: dist/index.writer_cleanAndSavePeriodTopEntitiesOfList
     input:
       listId: 1413118800363458560
