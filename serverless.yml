@@ -149,7 +149,7 @@ functions:
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
       - http:
-          path: cleanDB/{param}/{listId}/{secret}
+          path: cleanDB/{param}/{secret}/{listId}
           method: get
           cors: true
       - http:

@@ -600,7 +600,7 @@ export const writer_saveTopEntitiesByAll = catchErrors.bind(
       _saveTopEntitiesByAll,
       SECRETS.BEARER_TOKEN,
       writeTopEntitiesToDisk.bind(null, TOP_ENTITIES_PATH),
-      15
+      12
     )
   )
 );
