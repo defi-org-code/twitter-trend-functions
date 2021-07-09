@@ -81,6 +81,7 @@ const EXCLUDED_ENTITIES = [
   "BSCGem",
   "gem",
   "freetokens",
+  "legit",
 ]
   .map((e) => `'${e}'`)
   .join(",");
