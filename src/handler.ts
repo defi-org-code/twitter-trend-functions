@@ -564,7 +564,8 @@ function success(result: any, _continue?: boolean) {
 
 async function beforeRunningFunc(this: any, event: any, context: any) {
   const listId = event.pathParameters ? event.pathParameters.listId : null;
-  if (listId !== "1413118800363458560") {
+  console.log("event", event);
+  if (listId && listId !== "1413118800363458560") {
     return success("Currently only 1413118800363458560 list is supported");
   }
   ensureDBIsReady(listId);
