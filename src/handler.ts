@@ -70,18 +70,21 @@ const EXCLUDED_ENTITIES = [
   "dapp",
   "yield",
   "CoinMarketCap",
+  "definews",
   "cryptogiveaway",
   "cryptocrash",
   "cryptotwitter",
   "airdropalert",
   "cryptomoonshots",
   "altcoins",
+  "BSCArmy",
   "CryptoGems",
   "BSCs",
   "BSCGem",
   "gem",
   "freetokens",
   "legit",
+  "elon",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -192,7 +195,7 @@ const _saveTopEntitiesByAll = async (bearerToken: string, maxId: string | null, 
     bearerToken,
     100,
     maxId,
-    "(#defi OR #crypto OR #cryptocurrency)"
+    "(#defi OR #crypto OR #cryptocurrency OR #blockchain OR #bitcoin OR $cryptocurrencies OR ethereum OR #definews OR #yieldfarming)"
   );
 
   return response;
@@ -208,15 +211,17 @@ async function _saveTopEntities(this: any, bearerToken: string, writer: any, run
     currentRun = previousResult.currentRun;
   }
 
-  console.log("Running save top entities run number", currentRun);
+  console.log("Running save top entities run number", currentRun, "maxId", maxId);
 
   const response: RecentResults = await this(bearerToken, maxId, event);
+
+  console.log("Got", response.statuses.length, "results from twitter");
 
   // Max id to page to the next result
   maxId = response.search_metadata.next_results ? extractMaxId(response.search_metadata.next_results) : null;
 
   // Filtering bots
-  const statuses = filterStatusesForBots(response.statuses);
+  let statuses = filterStatusesForBots(response.statuses);
 
   // Keep for debugging
   // if (statuses.length !== response.statuses.length) {
@@ -239,18 +244,20 @@ async function _saveTopEntities(this: any, bearerToken: string, writer: any, run
   // }
 
   console.log("---- Inserting tweets ----");
-  await updateTweets(statuses);
+  statuses = await insertTweets(statuses);
 
   console.log("---- Processing entities ----");
   await setProcessedEntities();
 
-  console.log("---- Update entities ----");
-  await updateEntities(statuses);
+  console.log("---- Upsert entities ----");
+  await upsertEntities(statuses);
 
   console.log("---- Writing result ----");
-  await writer(statuses, event);
+  if (statuses.length > 0) {
+    await writer(statuses, event);
+  }
 
-  const _continue = currentRun < runs && !!maxId;
+  const _continue = currentRun < runs && statuses.length > 0;
   console.log("Finish save top entities run number", currentRun, "continue", _continue);
 
   return success(
@@ -305,7 +312,7 @@ const extractMaxId = (next_results: string) => {
   return queryParameters.searchParams.get("max_id");
 };
 
-const updateTweets = async (statuses: Array<Status>) => {
+const insertTweets = async (statuses: Array<Status>) => {
   const result: Array<string> = db
     .prepare(`select * from tweets where id in (${statuses.map((s) => `'${s.id_str}'`).join(",")})`)
     .all()
@@ -315,22 +322,29 @@ const updateTweets = async (statuses: Array<Status>) => {
 
   const tweetsStatement = db.prepare("insert into tweets values (?)");
 
+  console.log("Inserting", statuses.length, "Tweets");
+
   db.transaction((statuses: Array<Status>) => {
     statuses.forEach((status: Status) => {
       tweetsStatement.run(status.id_str);
     });
   })(statuses);
+
+  return statuses;
 };
 
 const setProcessedEntities = async () => {
-  return db
+  const result = db
     .prepare(
       "update entities set processed = count, lastUpdateTime = datetime() where not IFNULL(processed, -1) = count"
     )
     .run();
+
+  console.log(result.changes, " entities were updated");
+  return result;
 };
 
-const updateEntities = async (statuses: Array<Status>) => {
+const upsertEntities = async (statuses: Array<Status>) => {
   const entitiesToSave: Array<Entity> = [];
 
   statuses.forEach((status: Status) => {
@@ -418,13 +432,15 @@ const updateEntities = async (statuses: Array<Status>) => {
       "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
+  console.log("Going over", entitiesToSave.length, "entities");
+
   db.transaction((entities: Array<Entity>) => {
     entities.forEach((entity) => {
       entitiesStatement.run(entity.type, entity.name, entity.count, entity.extra, entity.count);
     });
   })(entitiesToSave);
 
-  console.log("done updateEntities");
+  console.log("done upsertEntities");
 };
 
 const writeUserListItemsToDisk = async (statuses: Array<Status>, event: any) => {
@@ -525,6 +541,7 @@ const writePeriodTopEntities = async (
 const truncateData = async () => {
   db.prepare("DELETE FROM entities").run();
   db.prepare("DELETE FROM tweets").run();
+  db.exec("VACUUM;");
 };
 
 // ############ WRAPPERS #############
