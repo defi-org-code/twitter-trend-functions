@@ -51,7 +51,7 @@ stepFunctions:
             enabled: true
             input:
               pathParameters:
-                listId: 1413118800363458560
+                listId: "1413118800363458560"
       definition:
         StartAt: Iterator
         States:
@@ -96,7 +96,7 @@ functions:
           rate: cron(59 23 * * ? *)
           enabled: true
           pathParameters:
-            listId: 1413118800363458560
+            listId: "1413118800363458560"
   reader_fetchTopEntities:
     handler: dist/index.reader_fetchTopEntities
     fileSystemConfig: ${file(./serverless-fs.yml)}
