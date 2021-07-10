@@ -10,6 +10,7 @@ import {
   TopEntity,
   TweetResponse,
   TweetsResponse,
+  User,
   UserResponse
 } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
@@ -243,7 +244,7 @@ async function _saveTopEntities(this: any, bearerToken: string, writer: any, run
 
   console.log("Finish save top entities run number");
 
-  return success('OK');
+  return success("OK");
 }
 
 const _cleanAndSavePeriodTopEntities = async () => {
@@ -429,15 +430,20 @@ const writeUserListItemsToDisk = async (statuses: Array<Status>, event: any) => 
 const writeActiveUsersToDisk = async (statuses: Array<Status>, event: any) => {
   const listId = event.pathParameters.listId;
 
-  const users: Array<UserResponse> = statuses
+  const usersMap: any = {};
+  statuses.forEach((status: Status) => {
+    usersMap[status.user.screen_name] = status.user;
+  });
+
+  const users: Array<UserResponse> = (Object.values(usersMap) as Array<User>)
     .slice(0, 25)
-    .map((status: Status) => {
+    .map((user: User) => {
       return {
-        displayName: status.user.name,
-        name: status.user.name,
-        following: status.user.friends_count,
-        followers: status.user.followers_count,
-        profileImage: status.user.profile_image_url_https
+        displayName: user.name,
+        name: user.name,
+        following: user.friends_count,
+        followers: user.followers_count,
+        profileImage: user.profile_image_url_https
       };
     });
 
