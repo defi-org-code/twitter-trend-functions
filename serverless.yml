@@ -93,10 +93,11 @@ functions:
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
       - schedule:
-          rate: cron(12 8 * * ? *)
+          rate: cron(22 8 * * ? *)
           enabled: true
-          pathParameters:
-            listId: "1413118800363458560"
+          input:
+            pathParameters:
+              listId: "1413118800363458560"
   reader_fetchTopEntities:
     handler: dist/index.reader_fetchTopEntities
     fileSystemConfig: ${file(./serverless-fs.yml)}
