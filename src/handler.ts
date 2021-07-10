@@ -205,69 +205,43 @@ const _saveTopEntitiesByAll = async (bearerToken: string, maxId: string | null, 
 };
 
 async function _saveTopEntities(this: any, bearerToken: string, writer: any, runs: number, event: any, context: any) {
-  let maxId: string | null = null;
-  let currentRun: number = 0;
 
-  if (event["taskresult"]) {
-    const previousResult = JSON.parse(event["taskresult"].body);
-    maxId = previousResult.maxId;
-    currentRun = previousResult.currentRun;
+  let maxId: string | null = null;
+  let _continue = true;
+  for (let currentRun: number = 0; _continue; currentRun++) {
+
+    console.log("Running save top entities run number", currentRun, "maxId", maxId);
+
+    const response: RecentResults = await this(bearerToken, maxId, event);
+
+    console.log("Got", response.statuses.length, "results from twitter");
+
+    // Max id to page to the next result
+    maxId = response.search_metadata.next_results ? extractMaxId(response.search_metadata.next_results) : null;
+
+    // Filtering bots
+    let statuses = filterStatusesForBots(response.statuses);
+
+    console.log("---- Inserting tweets ----");
+    const onlyNewStatuses = await insertTweets(statuses);
+
+    if (currentRun === 0) {
+      console.log("---- Processing entities ----");
+      await setProcessedEntities();
+    }
+
+    console.log("---- Upsert entities ----");
+    await upsertEntities(onlyNewStatuses);
+
+    console.log("---- Writing result ----");
+    await writer(statuses, event);
+
+    _continue = currentRun < runs && statuses.length > 0;
   }
 
-  console.log("Running save top entities run number", currentRun, "maxId", maxId);
+  console.log("Finish save top entities run number");
 
-  const response: RecentResults = await this(bearerToken, maxId, event);
-
-  console.log("Got", response.statuses.length, "results from twitter");
-
-  // Max id to page to the next result
-  maxId = response.search_metadata.next_results ? extractMaxId(response.search_metadata.next_results) : null;
-
-  // Filtering bots
-  let statuses = filterStatusesForBots(response.statuses);
-
-  // Keep for debugging
-  // if (statuses.length !== response.statuses.length) {
-  //   console.log("Amount of statuses filtered", response.statuses.length - statuses.length);
-  //   response.statuses
-  //     .filter((status: Status) => statuses.some((s: Status) => status.id_str === s.id_str))
-  //     .forEach((status: Status) => {
-  //       if (new Date(status.user.created_at).getTime() > new Date().getTime() - MONTH) {
-  //         console.log("---- User is not month old ----", new Date(status.user.created_at));
-  //       }
-  //       if (status.user.followers_count > 0) {
-  //         console.log("---- User does not have any followers ----");
-  //       }
-  //       if (!status.user.default_profile_image) {
-  //         console.log("---- User has a default profile image ----");
-  //       }
-  //     });
-  // } else {
-  //   console.log("---- No users were filtered ----");
-  // }
-
-  console.log("---- Inserting tweets ----");
-  const onlyNewStatuses = await insertTweets(statuses);
-
-  console.log("---- Processing entities ----");
-  await setProcessedEntities();
-
-  console.log("---- Upsert entities ----");
-  await upsertEntities(onlyNewStatuses);
-
-  console.log("---- Writing result ----");
-  await writer(statuses, event);
-
-  const _continue = currentRun < runs && statuses.length > 0;
-  console.log("Finish save top entities run number", currentRun, "continue", _continue);
-
-  return success(
-    {
-      maxId,
-      currentRun: currentRun + 1
-    },
-    _continue
-  );
+  return success('OK');
 }
 
 const _cleanAndSavePeriodTopEntities = async () => {
