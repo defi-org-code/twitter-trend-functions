@@ -50,7 +50,8 @@ stepFunctions:
             rate: rate(1 minute) # examples: rate(1 minute), rate(60 minutes)
             enabled: true
             input:
-              listId: 1413118800363458560
+              pathParameters:
+                listId: 1413118800363458560
       definition:
         StartAt: Iterator
         States:
@@ -94,7 +95,7 @@ functions:
       - schedule:
           rate: cron(59 23 * * ? *)
           enabled: true
-          input:
+          pathParameters:
             listId: 1413118800363458560
   reader_fetchTopEntities:
     handler: dist/index.reader_fetchTopEntities
