@@ -179,6 +179,8 @@ const _cleanDB = async (event: any, context: any) => {
     db.prepare("DELETE FROM tweets").run();
   }
 
+  db.exec("VACUUM;");
+
   return success("OK");
 };
 
