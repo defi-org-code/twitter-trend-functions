@@ -238,7 +238,7 @@ async function _saveTopEntities(this: any, bearerToken: string, writer: any, run
     console.log("---- Writing result ----");
     await writer(statuses, event);
 
-    _continue = currentRun < runs && statuses.length > 0;
+    _continue = currentRun < runs && onlyNewStatuses.length > 0;
   }
 
   console.log("Finish save top entities run number");
