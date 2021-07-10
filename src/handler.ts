@@ -10,7 +10,7 @@ import {
   TopEntity,
   TweetResponse,
   TweetsResponse,
-  UserResponse,
+  UserResponse
 } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
@@ -87,7 +87,7 @@ const EXCLUDED_ENTITIES = [
   "elon",
   "nftcollector",
   "NFTdrop",
-  "AirdropDetective",
+  "AirdropDetective"
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -150,10 +150,10 @@ async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) 
           name: status.retweeted_status?.user.screen_name || status.user.screen_name,
           followers: status.retweeted_status?.user.followers_count || status.user.followers_count,
           following: status.retweeted_status?.user.friends_count || status.user.friends_count,
-          profileImage: status.retweeted_status?.user.profile_image_url_https || status.user.profile_image_url_https,
-        },
+          profileImage: status.retweeted_status?.user.profile_image_url_https || status.user.profile_image_url_https
+        }
       };
-    }),
+    })
   };
 
   return success(tweetsResponse);
@@ -247,18 +247,16 @@ async function _saveTopEntities(this: any, bearerToken: string, writer: any, run
   // }
 
   console.log("---- Inserting tweets ----");
-  statuses = await insertTweets(statuses);
+  const onlyNewStatuses = await insertTweets(statuses);
 
   console.log("---- Processing entities ----");
   await setProcessedEntities();
 
   console.log("---- Upsert entities ----");
-  await upsertEntities(statuses);
+  await upsertEntities(onlyNewStatuses);
 
   console.log("---- Writing result ----");
-  if (statuses.length > 0) {
-    await writer(statuses, event);
-  }
+  await writer(statuses, event);
 
   const _continue = currentRun < runs && statuses.length > 0;
   console.log("Finish save top entities run number", currentRun, "continue", _continue);
@@ -266,7 +264,7 @@ async function _saveTopEntities(this: any, bearerToken: string, writer: any, run
   return success(
     {
       maxId,
-      currentRun: currentRun + 1,
+      currentRun: currentRun + 1
     },
     _continue
   );
@@ -355,7 +353,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
       hashtags: [],
       symbols: [],
       urls: [],
-      user_mentions: [],
+      user_mentions: []
     };
 
     if (status.quoted_status) {
@@ -378,7 +376,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
         entitiesToSave.push({
           type: EntityType.CASHHASH,
           name: cashtag,
-          count: 1,
+          count: 1
         });
       }
     });
@@ -392,7 +390,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
         entitiesToSave.push({
           type: EntityType.HASHTAG,
           name: hashtag,
-          count: 1,
+          count: 1
         });
       }
     });
@@ -407,7 +405,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
           type: EntityType.MENTION,
           name: mention,
           extra: name,
-          count: 1,
+          count: 1
         });
       }
     });
@@ -424,7 +422,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
             type: EntityType.URL,
             name: url,
             extra: expanded_url,
-            count: 1,
+            count: 1
           });
         }
       });
@@ -432,7 +430,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
 
   const entitiesStatement = db.prepare(
     "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
-      "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
+    "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
   );
 
   console.log("Going over", entitiesToSave.length, "entities");
@@ -463,7 +461,7 @@ const writeActiveUsersToDisk = async (statuses: Array<Status>, event: any) => {
         name: status.user.name,
         following: status.user.friends_count,
         followers: status.user.followers_count,
-        profileImage: status.user.profile_image_url_https,
+        profileImage: status.user.profile_image_url_https
       };
     });
 
@@ -488,7 +486,7 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
     hashtags,
     cashtags,
     mentions,
-    urls,
+    urls
   };
 };
 
@@ -500,7 +498,7 @@ const savePeriodTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL),
+    db.prepare(preparedStatement).get(EntityType.URL)
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,extra,date) values (?,?,?,?,date())");
@@ -522,7 +520,7 @@ const fetchWeeklyTopEntities = async () => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL),
+    db.prepare(preparedStatement).get(EntityType.URL)
   ];
 
   return weeklyTopEntities;
@@ -535,7 +533,7 @@ const writePeriodTopEntities = async (
 ) => {
   await fs.writeJson(path, {
     yesterdayTopEntities,
-    weeklyTopEntities,
+    weeklyTopEntities
   });
 };
 
@@ -551,9 +549,9 @@ function success(result: any, _continue?: boolean) {
   const response: any = {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": "*"
     },
-    body: JSON.stringify(result),
+    body: JSON.stringify(result)
   };
 
   if (_continue !== undefined) {
@@ -582,7 +580,7 @@ async function catchErrors(this: any, event: any, context: any) {
     console.error(message);
     return {
       statusCode: 500,
-      body: message,
+      body: message
     };
   }
 }
@@ -598,7 +596,7 @@ async function authorize(this: any, event: any, context: any) {
   } else {
     return {
       statusCode: 401,
-      body: "Unauthorized",
+      body: "Unauthorized"
     };
   }
 }
