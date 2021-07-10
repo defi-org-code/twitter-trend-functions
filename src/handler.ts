@@ -85,6 +85,9 @@ const EXCLUDED_ENTITIES = [
   "freetokens",
   "legit",
   "elon",
+  "nftcollector",
+  "NFTdrop",
+  "AirdropDetective",
 ]
   .map((e) => `'${e}'`)
   .join(",");
@@ -451,11 +454,9 @@ const writeUserListItemsToDisk = async (statuses: Array<Status>, event: any) => 
 
 const writeActiveUsersToDisk = async (statuses: Array<Status>, event: any) => {
   const listId = event.pathParameters.listId;
-  const hourAgo = new Date();
-  hourAgo.setTime(hourAgo.getTime() - 60 * 60 * 1000);
 
   const users: Array<UserResponse> = statuses
-    .filter((status) => new Date(status.created_at) > hourAgo)
+    .slice(0, 25)
     .map((status: Status) => {
       return {
         displayName: status.user.name,
