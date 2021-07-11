@@ -26,6 +26,10 @@ const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-to
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 const MONTH = 30 * 24 * 60 * 60 * 1000;
 
+// TODO: Check how many of filtered entities are added
+// TODO: consider removing the filters
+// TODO: Fix period json
+
 const EXCLUDED_ENTITIES = [
   "defi",
   "crypto",
@@ -88,10 +92,11 @@ const EXCLUDED_ENTITIES = [
   "elon",
   "nftcollector",
   "NFTdrop",
-  "AirdropDetective"
-]
-  .map((e) => `'${e}'`)
-  .join(",");
+  "AirdropDetective",
+  "ICO"
+];
+
+const EXCLUDED_ENTITIES_STRING = EXCLUDED_ENTITIES.map((e) => `'${e}'`).join(",");
 
 let db: Database;
 
@@ -411,6 +416,7 @@ const upsertEntities = async (statuses: Array<Status>) => {
   );
 
   console.log("Going over", entitiesToSave.length, "entities");
+  console.log(entitiesToSave.filter((e:Entity) => EXCLUDED_ENTITIES.includes(e.name)).length, "entities are filtered");
 
   db.transaction((entities: Array<Entity>) => {
     entities.forEach((entity) => {
@@ -457,7 +463,7 @@ const writeTopEntitiesToDisk = async (path: string) => {
 
 const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
   const prepareStatement = `select processed, count, name, extra, lastUpdateTime from entities where type = ?
-       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by processed desc, count desc limit ${limit}`;
+       and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES_STRING}) order by processed desc, count desc limit ${limit}`;
 
   const hashtags = db.prepare(prepareStatement).all(EntityType.HASHTAG);
   const cashtags = db.prepare(prepareStatement).all(EntityType.CASHHASH);
@@ -474,7 +480,7 @@ const fetchTopEntities = async (limit: number): Promise<EntitiesResult> => {
 
 const savePeriodTopEntities = async () => {
   const preparedStatement = `select type, count, name, extra from entities where type = ? 
-    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
+    and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES_STRING}) order by count desc`;
 
   const yesterdayTopEntities: Array<TopEntity> = [
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
@@ -496,7 +502,7 @@ const savePeriodTopEntities = async () => {
 
 const fetchWeeklyTopEntities = async () => {
   const preparedStatement = `select type, count, name, extra from top_entities where 
-        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES}) order by count desc`;
+        date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${EXCLUDED_ENTITIES_STRING}) order by count desc`;
 
   const weeklyTopEntities: Array<TopEntity> = [
     db.prepare(preparedStatement).get(EntityType.HASHTAG),

@@ -33,11 +33,13 @@ functions:
   writer_cleanAndSavePeriodTopEntities:
     handler: dist/index.writer_cleanAndSavePeriodTopEntities
     fileSystemConfig: ${file(./serverless-fs.yml)}
+    timeout: 60
     events:
       - schedule: cron(59 23 * * ? *)
   writer_cleanAndSavePeriodTopEnOfList:
     handler: dist/index.writer_cleanAndSavePeriodTopEntitiesOfList
     fileSystemConfig: ${file(./serverless-fs.yml)}
+    timeout: 60
     events:
       - schedule:
           rate: cron(59 23 * * ? *)
@@ -48,6 +50,7 @@ functions:
   writer_cleanDB:
     handler: dist/index.writer_cleanDB
     fileSystemConfig: ${file(./serverless-fs.yml)}
+    timeout: 60
     events:
       - http:
           path: cleanDB/{param}/{secret}/{listId}
