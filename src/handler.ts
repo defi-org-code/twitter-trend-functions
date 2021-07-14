@@ -26,10 +26,6 @@ const PERIOD_TOP_ENTITIES_PATH = path.resolve(process.env.HOME_DIR!!, "period-to
 const DB_PATH = path.resolve(process.env.HOME_DIR!!, "twitter.db");
 const MONTH = 30 * 24 * 60 * 60 * 1000;
 
-// TODO: Check how many of filtered entities are added
-// TODO: consider removing the filters
-// TODO: Fix period json
-
 const EXCLUDED_ENTITIES = [
   "defi",
   "crypto",
