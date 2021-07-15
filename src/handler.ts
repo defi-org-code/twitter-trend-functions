@@ -146,13 +146,14 @@ async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) 
     sinceId: statuses.length ? statuses[0].id_str : "",
     tweets: statuses.map((status: Status): TweetResponse => {
       return {
-        text: status.retweeted_status?.full_text || status.full_text,
+        text: (status.quoted_status ? `${status.quoted_status?.full_text}\n\r${status.retweeted_status?.full_text}` : null) || status.retweeted_status?.full_text || status.full_text,
+        tweetId: status.id_str,
         user: {
-          displayName: status.retweeted_status?.user.name || status.user.name,
-          name: status.retweeted_status?.user.screen_name || status.user.screen_name,
-          followers: status.retweeted_status?.user.followers_count || status.user.followers_count,
-          following: status.retweeted_status?.user.friends_count || status.user.friends_count,
-          profileImage: status.retweeted_status?.user.profile_image_url_https || status.user.profile_image_url_https
+          displayName: status.user.name,
+          name: status.user.screen_name,
+          followers: status.user.followers_count,
+          following: status.user.friends_count,
+          profileImage: status.user.profile_image_url_https
         }
       };
     })

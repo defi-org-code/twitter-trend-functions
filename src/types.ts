@@ -37,6 +37,7 @@ export type UserResponse = {
 
 export type TweetResponse = {
   text: string;
+  tweetId?: string;
   user: UserResponse;
 };
 
