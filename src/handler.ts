@@ -11,7 +11,7 @@ import {
   TweetResponse,
   TweetsResponse,
   User,
-  UserResponse
+  UserResponse,
 } from "./types";
 import sqlite3, { Database } from "better-sqlite3";
 import fs from "fs-extra";
@@ -89,7 +89,7 @@ const EXCLUDED_ENTITIES = [
   "nftcollector",
   "NFTdrop",
   "AirdropDetective",
-  "ICO"
+  "ICO",
 ];
 
 const EXCLUDED_ENTITIES_STRING = EXCLUDED_ENTITIES.map((e) => `'${e}'`).join(",");
@@ -105,12 +105,19 @@ const ensureDBIsReady = (dbSuffix: string = "") => {
       "CREATE TABLE IF NOT EXISTS entities (name TEXT, type INTEGER, count INTEGER, processed INTEGER, lastUpdateTime TEXT, extra TEXT, PRIMARY KEY (name, type))"
     );
     db.exec(
+      "CREATE TABLE IF NOT EXISTS entities_without_retweet (name TEXT, type INTEGER, count INTEGER, processed INTEGER, lastUpdateTime TEXT, extra TEXT, PRIMARY KEY (name, type))"
+    );
+    db.exec(
       "CREATE TABLE IF NOT EXISTS top_entities (name TEXT, type INTEGER, count INTEGER, extra TEXT, date TEXT, PRIMARY KEY (name, type, date))"
     );
   }
 };
 
 // ############ READERS #############
+
+async function _fetchTopEntitiesWithoutReTweets() {
+  return success(await fs.readJson(TOP_ENTITIES_PATH.replace(".json", "_without_retweets.json")));
+}
 
 async function _fetchTopEntities() {
   return success(await fs.readJson(TOP_ENTITIES_PATH));
@@ -158,10 +165,10 @@ async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) 
           name: status.user.screen_name,
           followers: status.user.followers_count,
           following: status.user.friends_count,
-          profileImage: status.user.profile_image_url_https
-        }
+          profileImage: status.user.profile_image_url_https,
+        },
       };
-    })
+    }),
   };
 
   return success(tweetsResponse);
@@ -177,12 +184,14 @@ const _cleanDB = async (event: any, context: any) => {
   if (param === "all") {
     db.prepare("DELETE FROM top_entities").run();
     db.prepare("DELETE FROM entities").run();
+    db.prepare("DELETE FROM entities_without_retweet").run();
     db.prepare("DELETE FROM tweets").run();
     db.prepare("DELETE FROM users_lists").run();
   } else if (param === "top") {
     db.prepare("DELETE FROM top_entities").run();
   } else if (param === "entities") {
     db.prepare("DELETE FROM entities").run();
+    db.prepare("DELETE FROM entities_without_retweet").run();
   } else if (param === "tweets") {
     db.prepare("DELETE FROM tweets").run();
   }
@@ -336,6 +345,15 @@ const setProcessedEntities = async () => {
 };
 
 const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) => {
+  await upsertEntitiesInTable(statuses, numberOfThreads, "entities");
+  await upsertEntitiesInTable(
+    statuses.filter((status: Status) => !status.retweeted_status),
+    numberOfThreads,
+    "entities_without_retweet"
+  );
+};
+
+const upsertEntitiesInTable = async (statuses: Array<Status>, numberOfThreads: number, table: string) => {
   const entitiesToSave: Array<Entity> = [];
 
   statuses.forEach((status: Status) => {
@@ -343,7 +361,7 @@ const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) 
       hashtags: [],
       symbols: [],
       urls: [],
-      user_mentions: []
+      user_mentions: [],
     };
 
     if (status.quoted_status) {
@@ -366,7 +384,7 @@ const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) 
         entitiesToSave.push({
           type: EntityType.CASHHASH,
           name: cashtag,
-          count: numberOfThreads
+          count: numberOfThreads,
         });
       }
     });
@@ -380,7 +398,7 @@ const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) 
         entitiesToSave.push({
           type: EntityType.HASHTAG,
           name: hashtag,
-          count: numberOfThreads
+          count: numberOfThreads,
         });
       }
     });
@@ -395,7 +413,7 @@ const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) 
           type: EntityType.MENTION,
           name: mention,
           extra: name,
-          count: numberOfThreads
+          count: numberOfThreads,
         });
       }
     });
@@ -412,18 +430,18 @@ const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) 
             type: EntityType.URL,
             name: url,
             extra: expanded_url,
-            count: numberOfThreads
+            count: numberOfThreads,
           });
         }
       });
   });
 
   const entitiesStatement = db.prepare(
-    "Insert INTO entities(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)\n" +
-    "ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()"
+    `Insert INTO ${table}(type,name,count,lastUpdateTime,extra) values (?,?,?,datetime(),?)
+            ON CONFLICT (type,name) DO UPDATE SET count = count + ?, lastUpdateTime = datetime()`
   );
 
-  console.log("Going over", entitiesToSave.length, "entities");
+  console.log("Going over", entitiesToSave.length, table);
   console.log(entitiesToSave.filter((e: Entity) => EXCLUDED_ENTITIES.includes(e.name)).length, "entities are filtered");
 
   db.transaction((entities: Array<Entity>) => {
@@ -432,13 +450,13 @@ const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) 
     });
   })(entitiesToSave);
 
-  console.log("done upsertEntities");
+  console.log("done upsertEntities in table", table);
 };
 
 const writeUserListItemsToDisk = async (statuses: Array<Status>, event: any) => {
   await writeActiveUsersToDisk(statuses, event);
   const listId = event.pathParameters.listId;
-  await writeTopEntitiesToDisk(TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId), "");
+  await writeTopEntitiesToDisk(TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId), "", false);
 };
 
 const writeActiveUsersToDisk = async (statuses: Array<Status>, event: any) => {
@@ -455,20 +473,24 @@ const writeActiveUsersToDisk = async (statuses: Array<Status>, event: any) => {
       name: user.name,
       following: user.friends_count,
       followers: user.followers_count,
-      profileImage: user.profile_image_url_https
+      profileImage: user.profile_image_url_https,
     };
   });
 
   await fs.writeJson(ACTIVE_USERS_PATH.replace("$LIST_ID", listId), users);
 };
 
-const writeTopEntitiesToDisk = async (path: string, excludeEntities: string) => {
-  const topEntities = await fetchTopEntities(30, excludeEntities);
+const writeTopEntitiesToDisk = async (path: string, excludeEntities: string, alsoSaveWithoutRetweets: boolean) => {
+  const topEntities = await fetchTopEntities(30, excludeEntities, "entities");
   await fs.writeJson(path, topEntities);
+  if (alsoSaveWithoutRetweets) {
+    const topEntities = await fetchTopEntities(30, excludeEntities, "entities_without_retweet");
+    await fs.writeJson(path.replace(".json", "_without_retweets.json"), topEntities);
+  }
 };
 
-const fetchTopEntities = async (limit: number, excludeEntities: string): Promise<EntitiesResult> => {
-  const prepareStatement = `select processed, count, name, extra, lastUpdateTime from entities where type = ?
+const fetchTopEntities = async (limit: number, excludeEntities: string, table: string): Promise<EntitiesResult> => {
+  const prepareStatement = `select processed, count, name, extra, lastUpdateTime from ${table} where type = ?
        and not name COLLATE NOCASE in (${excludeEntities}) order by processed desc, count desc limit ${limit}`;
 
   const hashtags = db.prepare(prepareStatement).all(EntityType.HASHTAG);
@@ -480,7 +502,7 @@ const fetchTopEntities = async (limit: number, excludeEntities: string): Promise
     hashtags,
     cashtags,
     mentions,
-    urls
+    urls,
   };
 };
 
@@ -492,7 +514,7 @@ const savePeriodTopEntities = async (excludeEntities: string) => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.URL),
   ].filter((e) => !!e);
 
   const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,extra,date) values (?,?,?,?,date())");
@@ -514,7 +536,7 @@ const fetchWeeklyTopEntities = async (excludeEntities: string) => {
     db.prepare(preparedStatement).get(EntityType.HASHTAG),
     db.prepare(preparedStatement).get(EntityType.CASHHASH),
     db.prepare(preparedStatement).get(EntityType.MENTION),
-    db.prepare(preparedStatement).get(EntityType.URL)
+    db.prepare(preparedStatement).get(EntityType.URL),
   ];
 
   return weeklyTopEntities;
@@ -527,12 +549,13 @@ const writePeriodTopEntities = async (
 ) => {
   await fs.writeJson(path, {
     yesterdayTopEntities,
-    weeklyTopEntities
+    weeklyTopEntities,
   });
 };
 
 const truncateData = async () => {
   db.prepare("DELETE FROM entities").run();
+  db.prepare("DELETE FROM entities_without_retweet").run();
   db.prepare("DELETE FROM tweets").run();
   db.exec("VACUUM;");
 };
@@ -543,9 +566,9 @@ function success(result: any, _continue?: boolean) {
   const response: any = {
     statusCode: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "*",
     },
-    body: JSON.stringify(result)
+    body: JSON.stringify(result),
   };
 
   if (_continue !== undefined) {
@@ -574,7 +597,7 @@ async function catchErrors(this: any, event: any, context: any) {
     console.error(message);
     return {
       statusCode: 500,
-      body: message
+      body: message,
     };
   }
 }
@@ -590,13 +613,14 @@ async function authorize(this: any, event: any, context: any) {
   } else {
     return {
       statusCode: 401,
-      body: "Unauthorized"
+      body: "Unauthorized",
     };
   }
 }
 
 // ---------- READERS -----------
 
+export const reader_fetchTopEntitiesWithoutReTweets = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntitiesWithoutReTweets));
 export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntities));
 export const reader_fetchActiveUsersOfList = catchErrors.bind(beforeRunningFunc.bind(_fetchActiveUsersOfList));
 export const reader_fetchTopEntitiesOfList = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntitiesOfList));
@@ -615,7 +639,7 @@ export const writer_saveTopEntitiesByAll = catchErrors.bind(
     _saveTopEntities.bind(
       _saveTopEntitiesByAll,
       SECRETS.BEARER_TOKEN,
-      writeTopEntitiesToDisk.bind(null, TOP_ENTITIES_PATH, EXCLUDED_ENTITIES_STRING),
+      writeTopEntitiesToDisk.bind(null, TOP_ENTITIES_PATH, EXCLUDED_ENTITIES_STRING, true),
       12, // Runs
       parseInt(SECRETS.NUMBER_OF_THREADS_FOR_ALL_TWEERS)
     )
@@ -639,3 +663,7 @@ export const writer_cleanAndSavePeriodTopEntitiesOfList = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntitiesOfList)
 );
 export const writer_cleanDB = catchErrors.bind(authorize.bind(beforeRunningFunc.bind(_cleanDB)));
+
+(async () => {
+  await writer_saveTopEntitiesByAll({}, {});
+})();

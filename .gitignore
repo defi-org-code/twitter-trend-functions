@@ -9,7 +9,7 @@
 twitter_*.db
 top-entities-of-list-*.json
 active-users-*.json
-top-entities.json
+top-entities*.json
 twitter.db
 twitter.db-journal
 period-top-entities.json
