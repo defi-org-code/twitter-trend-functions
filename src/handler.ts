@@ -663,7 +663,3 @@ export const writer_cleanAndSavePeriodTopEntitiesOfList = catchErrors.bind(
   beforeRunningFunc.bind(_cleanAndSavePeriodTopEntitiesOfList)
 );
 export const writer_cleanDB = catchErrors.bind(authorize.bind(beforeRunningFunc.bind(_cleanDB)));
-
-(async () => {
-  await writer_saveTopEntitiesByAll({}, {});
-})();
