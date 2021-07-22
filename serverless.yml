@@ -100,6 +100,14 @@ functions:
           path: fetchPeriodTopEntities
           method: get
           cors: true
+  reader_fetchPeriodTopEntitiesWithoutRetweets:
+    handler: dist/index.reader_fetchPeriodTopEntitiesWithoutRetweets
+    fileSystemConfig: ${file(./serverless-fs.yml)}
+    events:
+      - http:
+          path: fetchPeriodTopEntitiesWithoutRetweets
+          method: get
+          cors: true
   reader_fetchPeriodTopEntitiesOfList:
     handler: dist/index.reader_fetchPeriodTopEntitiesOfList
     fileSystemConfig: ${file(./serverless-fs.yml)}

@@ -69,6 +69,26 @@ const EXCLUDED_ENTITIES = [
   "presale",
   "100xCoin",
   "dapp",
+  "token",
+  "erc20",
+  "erc20news",
+  "pump",
+  "fintech",
+  "affiliatemarketing",
+  "shopping",
+  "twitter",
+  "facebook",
+  "instagram",
+  "socialmedia",
+  "gift",
+  "gifts",
+  "giftideas",
+  "shop",
+  "tumblr",
+  "deal",
+  "USDT",
+  "investing",
+  "IDO",
   "yield",
   "CoinMarketCap",
   "definews",
@@ -110,12 +130,15 @@ const ensureDBIsReady = (dbSuffix: string = "") => {
     db.exec(
       "CREATE TABLE IF NOT EXISTS top_entities (name TEXT, type INTEGER, count INTEGER, extra TEXT, date TEXT, PRIMARY KEY (name, type, date))"
     );
+    db.exec(
+      "CREATE TABLE IF NOT EXISTS top_entities_without_retweet (name TEXT, type INTEGER, count INTEGER, extra TEXT, date TEXT, PRIMARY KEY (name, type, date))"
+    );
   }
 };
 
 // ############ READERS #############
 
-async function _fetchTopEntitiesWithoutReTweets() {
+async function _fetchTopEntitiesWithoutRetweets() {
   return success(await fs.readJson(TOP_ENTITIES_PATH.replace(".json", "_without_retweets.json")));
 }
 
@@ -131,6 +154,10 @@ async function _fetchTopEntitiesOfList(event: any) {
 async function _fetchActiveUsersOfList(event: any) {
   const listId = event.pathParameters.listId;
   return success(await fs.readJson(ACTIVE_USERS_PATH.replace("$LIST_ID", listId)));
+}
+
+async function _fetchPeriodTopEntitiesWithoutRetweets() {
+  return success(await fs.readJson(PERIOD_TOP_ENTITIES_PATH.replace(".json", "_without_retweets.json")));
 }
 
 async function _fetchPeriodTopEntities() {
@@ -183,12 +210,14 @@ const _cleanDB = async (event: any, context: any) => {
 
   if (param === "all") {
     db.prepare("DELETE FROM top_entities").run();
+    db.prepare("DELETE FROM top_entities_without_retweet").run();
     db.prepare("DELETE FROM entities").run();
     db.prepare("DELETE FROM entities_without_retweet").run();
     db.prepare("DELETE FROM tweets").run();
     db.prepare("DELETE FROM users_lists").run();
   } else if (param === "top") {
     db.prepare("DELETE FROM top_entities").run();
+    db.prepare("DELETE FROM top_entities_without_retweet").run();
   } else if (param === "entities") {
     db.prepare("DELETE FROM entities").run();
     db.prepare("DELETE FROM entities_without_retweet").run();
@@ -271,7 +300,7 @@ async function _saveTopEntities(
 
 const _cleanAndSavePeriodTopEntities = async () => {
   console.log("---- Save Period Top Entities ----");
-  await _writePeriodTopEntities(PERIOD_TOP_ENTITIES_PATH, EXCLUDED_ENTITIES_STRING);
+  await _writePeriodTopEntities(PERIOD_TOP_ENTITIES_PATH, EXCLUDED_ENTITIES_STRING, true);
   console.log("---- Truncating entities ----");
   await truncateData();
 };
@@ -279,7 +308,7 @@ const _cleanAndSavePeriodTopEntities = async () => {
 const _cleanAndSavePeriodTopEntitiesOfList = async (event: any) => {
   console.log("---- Save Period Top Entities Of List ----");
   const listId = event.pathParameters.listId;
-  await _writePeriodTopEntities(PERIOD_TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId), "");
+  await _writePeriodTopEntities(PERIOD_TOP_ENTITIES_OF_LIST_PATH.replace("$LIST_ID", listId), "", false);
   console.log("---- Truncating entities ----");
   await truncateData();
 };
@@ -300,11 +329,27 @@ function filterStatusesForBots(statuses: Array<Status>): Array<Status> {
   return [];
 }
 
-async function _writePeriodTopEntities(path: string, excludeEntities: string) {
-  const yesterdayTopEntities = await savePeriodTopEntities(excludeEntities);
-  const weeklyTopEntities = await fetchWeeklyTopEntities(excludeEntities);
-  console.log("---- Write Period Top Entities ----");
-  await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities, path);
+async function _writePeriodTopEntities(path: string, excludeEntities: string, alsoSaveWithoutRetweets: boolean) {
+  {
+    const yesterdayTopEntities = await savePeriodTopEntities(excludeEntities, "entities", "top_entities");
+    const weeklyTopEntities = await fetchWeeklyTopEntities(excludeEntities, "top_entities");
+    console.log("---- Write Period Top Entities ----");
+    await writePeriodTopEntities(yesterdayTopEntities, weeklyTopEntities, path);
+  }
+  if (alsoSaveWithoutRetweets) {
+    const yesterdayTopEntities = await savePeriodTopEntities(
+      excludeEntities,
+      "entities_without_retweet",
+      "top_entities_without_retweet"
+    );
+    const weeklyTopEntities = await fetchWeeklyTopEntities(excludeEntities, "top_entities_without_retweet");
+    console.log("---- Write Period Top Entities ----");
+    await writePeriodTopEntities(
+      yesterdayTopEntities,
+      weeklyTopEntities,
+      path.replace(".json", "_without_retweets.json")
+    );
+  }
 }
 
 const extractMaxId = (next_results: string) => {
@@ -506,8 +551,8 @@ const fetchTopEntities = async (limit: number, excludeEntities: string, table: s
   };
 };
 
-const savePeriodTopEntities = async (excludeEntities: string) => {
-  const preparedStatement = `select type, count, name, extra from entities where type = ? 
+const savePeriodTopEntities = async (excludeEntities: string, sourceTable: string, destinationTable: string) => {
+  const preparedStatement = `select type, count, name, extra from ${sourceTable} where type = ? 
     and not name COLLATE NOCASE in (${excludeEntities}) order by count desc`;
 
   const yesterdayTopEntities: Array<TopEntity> = [
@@ -517,7 +562,9 @@ const savePeriodTopEntities = async (excludeEntities: string) => {
     db.prepare(preparedStatement).get(EntityType.URL),
   ].filter((e) => !!e);
 
-  const entitiesStatement = db.prepare("Insert INTO top_entities(type,name,count,extra,date) values (?,?,?,?,date())");
+  const entitiesStatement = db.prepare(
+    `Insert INTO ${destinationTable}(type,name,count,extra,date) values (?,?,?,?,date())`
+  );
 
   db.transaction((entities: Array<TopEntity>) => {
     entities.forEach((entity: TopEntity) => {
@@ -528,8 +575,8 @@ const savePeriodTopEntities = async (excludeEntities: string) => {
   return yesterdayTopEntities;
 };
 
-const fetchWeeklyTopEntities = async (excludeEntities: string) => {
-  const preparedStatement = `select type, count, name, extra from top_entities where 
+const fetchWeeklyTopEntities = async (excludeEntities: string, table: string) => {
+  const preparedStatement = `select type, count, name, extra from ${table} where 
         date > (SELECT DATETIME('now', '-7 day')) and type = ? and not name COLLATE NOCASE in (${excludeEntities}) order by count desc`;
 
   const weeklyTopEntities: Array<TopEntity> = [
@@ -620,7 +667,12 @@ async function authorize(this: any, event: any, context: any) {
 
 // ---------- READERS -----------
 
-export const reader_fetchTopEntitiesWithoutReTweets = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntitiesWithoutReTweets));
+export const reader_fetchPeriodTopEntitiesWithoutRetweets = catchErrors.bind(
+  beforeRunningFunc.bind(_fetchPeriodTopEntitiesWithoutRetweets)
+);
+export const reader_fetchTopEntitiesWithoutRetweets = catchErrors.bind(
+  beforeRunningFunc.bind(_fetchTopEntitiesWithoutRetweets)
+);
 export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntities));
 export const reader_fetchActiveUsersOfList = catchErrors.bind(beforeRunningFunc.bind(_fetchActiveUsersOfList));
 export const reader_fetchTopEntitiesOfList = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntitiesOfList));
