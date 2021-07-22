@@ -667,10 +667,10 @@ async function authorize(this: any, event: any, context: any) {
 
 // ---------- READERS -----------
 
-export const reader_fetchPeriodTopEntitiesWithoutRetweets = catchErrors.bind(
+export const reader_fetchPeriodTopEntNoRetweets = catchErrors.bind(
   beforeRunningFunc.bind(_fetchPeriodTopEntitiesWithoutRetweets)
 );
-export const reader_fetchTopEntitiesWithoutRetweets = catchErrors.bind(
+export const reader_fetchTopEntNoRetweets = catchErrors.bind(
   beforeRunningFunc.bind(_fetchTopEntitiesWithoutRetweets)
 );
 export const reader_fetchTopEntities = catchErrors.bind(beforeRunningFunc.bind(_fetchTopEntities));
