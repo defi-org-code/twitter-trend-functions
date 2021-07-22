@@ -68,7 +68,7 @@ functions:
           path: fetchTopEntities
           method: get
           cors: true
-  reader_fetchTopEntitiesWithoutReTweets:
+  reader_fetchTopEntNoRetweets:
     handler: dist/index.reader_fetchTopEntNoRetweets
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
@@ -100,7 +100,7 @@ functions:
           path: fetchPeriodTopEntities
           method: get
           cors: true
-  reader_fetchPeriodTopEntitiesWithoutRetweets:
+  reader_fetchPeriodTopEntNoRetweets:
     handler: dist/index.reader_fetchPeriodTopEntNoRetweets
     fileSystemConfig: ${file(./serverless-fs.yml)}
     events:
