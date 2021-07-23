@@ -257,7 +257,6 @@ async function _saveTopEntities(
   bearerToken: string,
   writer: any,
   runs: number,
-  numberOfThreads: number,
   event: any,
   context: any
 ) {
@@ -285,7 +284,7 @@ async function _saveTopEntities(
     }
 
     console.log("---- Upsert entities ----");
-    await upsertEntities(onlyNewStatuses, numberOfThreads);
+    await upsertEntities(onlyNewStatuses);
 
     console.log("---- Writing result ----");
     await writer(statuses, event);
@@ -389,16 +388,15 @@ const setProcessedEntities = async () => {
   return result;
 };
 
-const upsertEntities = async (statuses: Array<Status>, numberOfThreads: number) => {
-  await upsertEntitiesInTable(statuses, numberOfThreads, "entities");
+const upsertEntities = async (statuses: Array<Status>) => {
+  await upsertEntitiesInTable(statuses, "entities");
   await upsertEntitiesInTable(
     statuses.filter((status: Status) => !status.retweeted_status),
-    numberOfThreads,
     "entities_without_retweet"
   );
 };
 
-const upsertEntitiesInTable = async (statuses: Array<Status>, numberOfThreads: number, table: string) => {
+const upsertEntitiesInTable = async (statuses: Array<Status>, table: string) => {
   const entitiesToSave: Array<Entity> = [];
 
   statuses.forEach((status: Status) => {
@@ -424,12 +422,12 @@ const upsertEntitiesInTable = async (statuses: Array<Status>, numberOfThreads: n
       const entity = entitiesToSave.find((e) => e.name === cashtag && e.type === EntityType.CASHHASH);
 
       if (entity) {
-        entity.count += numberOfThreads;
+        entity.count += 1;
       } else {
         entitiesToSave.push({
           type: EntityType.CASHHASH,
           name: cashtag,
-          count: numberOfThreads,
+          count: 1,
         });
       }
     });
@@ -438,12 +436,12 @@ const upsertEntitiesInTable = async (statuses: Array<Status>, numberOfThreads: n
       const entity = entitiesToSave.find((e) => e.name === hashtag && e.type === EntityType.HASHTAG);
 
       if (entity) {
-        entity.count += numberOfThreads;
+        entity.count += 1;
       } else {
         entitiesToSave.push({
           type: EntityType.HASHTAG,
           name: hashtag,
-          count: numberOfThreads,
+          count: 1,
         });
       }
     });
@@ -452,13 +450,13 @@ const upsertEntitiesInTable = async (statuses: Array<Status>, numberOfThreads: n
       const entity = entitiesToSave.find((e) => e.name === mention && e.type === EntityType.MENTION);
 
       if (entity) {
-        entity.count += numberOfThreads;
+        entity.count += 1;
       } else {
         entitiesToSave.push({
           type: EntityType.MENTION,
           name: mention,
           extra: name,
-          count: numberOfThreads,
+          count: 1,
         });
       }
     });
@@ -469,13 +467,13 @@ const upsertEntitiesInTable = async (statuses: Array<Status>, numberOfThreads: n
         const entity = entitiesToSave.find((e) => e.name === url && e.type === EntityType.URL);
 
         if (entity) {
-          entity.count += numberOfThreads;
+          entity.count += 1;
         } else {
           entitiesToSave.push({
             type: EntityType.URL,
             name: url,
             extra: expanded_url,
-            count: numberOfThreads,
+            count: 1,
           });
         }
       });
@@ -693,7 +691,6 @@ export const writer_saveTopEntitiesByAll = catchErrors.bind(
       SECRETS.BEARER_TOKEN,
       writeTopEntitiesToDisk.bind(null, TOP_ENTITIES_PATH, EXCLUDED_ENTITIES_STRING, true),
       12, // Runs
-      parseInt(SECRETS.NUMBER_OF_THREADS_FOR_ALL_TWEERS)
     )
   )
 );
@@ -704,7 +701,6 @@ export const writer_saveTopEntitiesByList = catchErrors.bind(
       SECRETS.USERS_BEARER_TOKEN,
       writeUserListItemsToDisk,
       5, // Runs
-      parseInt(SECRETS.NUMBER_OF_THREADS_FOR_VERIFIED_TWEERS)
     )
   )
 );
