@@ -10,7 +10,7 @@ export const getRecentTweets = async (
   max_id?: string | null,
   filter?: string,
   sinceId?: string
-) => {
+): Promise<RecentResults> => {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
 
@@ -53,7 +53,7 @@ export const getRecentTweetsOfList = async (
   listId: string,
   max_id?: string | null,
   sinceId?: string
-) => {
+): Promise<RecentResults> => {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
 
