@@ -141,9 +141,17 @@ functions:
     events:
       - http:
           path: fetchTweetsByTag/{filter}/{sinceId}
+          request:
+            parameters:
+              querystrings:
+                withoutRetweets: false
           method: get
           cors: true
       - http:
           path: fetchTweetsByTag/{filter}
+          request:
+            parameters:
+              querystrings:
+                withoutRetweets: false
           method: get
           cors: true

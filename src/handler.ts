@@ -194,7 +194,10 @@ async function _fetchPeriodTopEntitiesOfList(event: any) {
 
 async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) {
   const sinceId = event.pathParameters.sinceId;
-  const filter = event.pathParameters.filter;
+  const withoutRetweets = event.queryStringParameters?.withoutRetweets;
+  const filter = `${event.pathParameters.filter}${withoutRetweets ? " -filter:retweets" : ""}`;
+
+  console.log("filtering", filter);
 
   const response: RecentResults = await getRecentTweets(bearerToken, 10, null, filter, sinceId);
   const statuses = filterStatusesForBots(response.statuses);
