@@ -370,8 +370,8 @@ function filterStatusesForBots(statuses: Array<Status>): Array<Status> {
   if (statuses) {
     return statuses.filter((status: Status) => {
       return (
-        new Date(status.user.created_at).getTime() < new Date().getTime() - MONTH &&
-        status.user.followers_count > 0 &&
+        new Date(status.user.created_at).getTime() < new Date().getTime() - (MONTH * 6) &&
+        status.user.followers_count > 10 &&
         !status.user.default_profile_image
       );
     });
