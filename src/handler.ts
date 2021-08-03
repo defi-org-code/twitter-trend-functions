@@ -199,7 +199,7 @@ async function _fetchTweetsByTag(bearerToken: string, event: any, context: any) 
 
   console.log("filtering", filter);
 
-  const response: RecentResults = await getRecentTweets(bearerToken, 10, null, filter, sinceId);
+  const response: RecentResults = await getRecentTweets(bearerToken, 25, null, filter, sinceId);
   const statuses = filterStatusesForBots(response.statuses);
 
   const tweetsResponse: TweetsResponse = {
